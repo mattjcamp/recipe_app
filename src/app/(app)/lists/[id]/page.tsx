@@ -1,8 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { GroceryList, GroceryListItem } from "@/lib/database.types";
-import { addItem } from "../actions";
+import type {
+  GroceryList,
+  GroceryListItem,
+  Ingredient,
+} from "@/lib/database.types";
+import AddItem from "./AddItem";
 import ListItems from "./ListItems";
 
 export default async function ListDetailPage({
@@ -21,11 +25,17 @@ export default async function ListDetailPage({
 
   if (!list) notFound();
 
-  const { data: items } = await supabase
-    .from("grocery_list_items")
-    .select("*")
-    .eq("list_id", id)
-    .order("created_at", { ascending: true });
+  const [{ data: items }, { data: catalog }] = await Promise.all([
+    supabase
+      .from("grocery_list_items")
+      .select("*")
+      .eq("list_id", id)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("ingredients")
+      .select("id, name, default_unit")
+      .order("name", { ascending: true }),
+  ]);
 
   return (
     <div>
@@ -36,18 +46,12 @@ export default async function ListDetailPage({
         {(list as GroceryList).name}
       </h1>
 
-      <form action={addItem} className="mb-6 flex gap-2">
-        <input type="hidden" name="list_id" value={id} />
-        <input
-          name="free_text"
-          required
-          placeholder="Add item (e.g. 2 dozen eggs)"
-          className="flex-1 rounded-lg border border-slate-300 px-3 py-2"
-        />
-        <button className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700">
-          Add
-        </button>
-      </form>
+      <AddItem
+        listId={id}
+        catalog={
+          (catalog as Pick<Ingredient, "id" | "name" | "default_unit">[]) ?? []
+        }
+      />
 
       <ListItems
         listId={id}

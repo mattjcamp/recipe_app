@@ -327,6 +327,10 @@ create policy ingredients_select on ingredients
   for select using (auth.uid() is not null);
 create policy ingredients_insert on ingredients
   for insert with check (auth.uid() is not null);
+create policy ingredients_update on ingredients
+  for update using (auth.uid() is not null) with check (auth.uid() is not null);
+create policy ingredients_delete on ingredients
+  for delete using (auth.uid() is not null);
 
 -- ---- recipes --------------------------------------------------------------
 create policy recipes_all on recipes

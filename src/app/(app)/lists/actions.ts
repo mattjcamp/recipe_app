@@ -25,6 +25,10 @@ export async function addItem(formData: FormData) {
   const text = String(formData.get("free_text") || "").trim();
   if (!text || !listId) return;
 
+  // Optional link to a catalog item (when chosen from autocomplete).
+  const ingredientId = String(formData.get("ingredient_id") || "") || null;
+  const unit = String(formData.get("unit") || "").trim() || null;
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -32,7 +36,11 @@ export async function addItem(formData: FormData) {
 
   await supabase.from("grocery_list_items").insert({
     list_id: listId,
+    // Keep the name as free_text too, so the item survives if the catalog
+    // entry is later deleted (the FK is ON DELETE SET NULL).
     free_text: text,
+    ingredient_id: ingredientId,
+    unit,
     added_by: user?.id ?? null,
   });
 

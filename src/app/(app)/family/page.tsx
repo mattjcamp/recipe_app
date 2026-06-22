@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentFamily } from "@/lib/family";
 import type { FamilyMember, FamilyInvite, Profile } from "@/lib/database.types";
+import Link from "next/link";
 import { createInvite, revokeInvite, removeMember } from "./actions";
 import CopyLink from "./CopyLink";
 
@@ -64,6 +65,14 @@ export default async function FamilyPage({
           {error}
         </p>
       )}
+
+      <Link
+        href="/family/catalog"
+        className="mb-6 flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 hover:border-emerald-300"
+      >
+        <span className="font-medium">🧺 Item catalog</span>
+        <span className="text-slate-300">›</span>
+      </Link>
 
       <section className="mb-8">
         <h2 className="mb-2 font-semibold">Members</h2>

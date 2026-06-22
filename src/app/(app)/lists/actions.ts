@@ -27,12 +27,30 @@ export async function addItem(formData: FormData) {
 
   // Optional link to a catalog item (when chosen from autocomplete).
   const ingredientId = String(formData.get("ingredient_id") || "") || null;
-  const unit = String(formData.get("unit") || "").trim() || null;
+  let unit = String(formData.get("unit") || "").trim() || null;
+  let aisle: string | null = null;
+  let notes: string | null = null;
+  let imagePath: string | null = null;
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // Pull the template's defaults so the list item inherits unit/aisle/notes/photo.
+  if (ingredientId) {
+    const { data: ing } = await supabase
+      .from("ingredients")
+      .select("default_unit, aisle, notes, image_path")
+      .eq("id", ingredientId)
+      .maybeSingle();
+    if (ing) {
+      unit = unit ?? ing.default_unit ?? null;
+      aisle = ing.aisle ?? null;
+      notes = ing.notes ?? null;
+      imagePath = ing.image_path ?? null;
+    }
+  }
 
   await supabase.from("grocery_list_items").insert({
     list_id: listId,
@@ -41,6 +59,9 @@ export async function addItem(formData: FormData) {
     free_text: text,
     ingredient_id: ingredientId,
     unit,
+    aisle,
+    notes,
+    image_path: imagePath,
     added_by: user?.id ?? null,
   });
 

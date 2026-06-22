@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Ingredient } from "@/lib/database.types";
@@ -14,15 +15,9 @@ export default function CatalogManager({
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  // add-form fields
+  // quick-add field (name only; full detail is on the item screen)
   const [name, setName] = useState("");
-  const [category, setCategory] = useState("");
-  const [unit, setUnit] = useState("");
   const [adding, setAdding] = useState(false);
-
-  // inline edit
-  const [editId, setEditId] = useState<string | null>(null);
-  const [edit, setEdit] = useState({ name: "", category: "", unit: "" });
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -44,11 +39,7 @@ export default function CatalogManager({
     setError(null);
     const { data, error } = await supabase
       .from("ingredients")
-      .insert({
-        name: trimmed,
-        category: category.trim() || null,
-        default_unit: unit.trim() || null,
-      })
+      .insert({ name: trimmed })
       .select("*")
       .single();
     setAdding(false);
@@ -62,83 +53,16 @@ export default function CatalogManager({
     }
     setItems((c) => [...c, data as Ingredient]);
     setName("");
-    setCategory("");
-    setUnit("");
-  }
-
-  function startEdit(i: Ingredient) {
-    setEditId(i.id);
-    setEdit({
-      name: i.name,
-      category: i.category ?? "",
-      unit: i.default_unit ?? "",
-    });
-    setError(null);
-  }
-
-  async function saveEdit(id: string) {
-    const trimmed = edit.name.trim();
-    if (!trimmed) return;
-    const { error } = await supabase
-      .from("ingredients")
-      .update({
-        name: trimmed,
-        category: edit.category.trim() || null,
-        default_unit: edit.unit.trim() || null,
-      })
-      .eq("id", id);
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    setItems((c) =>
-      c.map((i) =>
-        i.id === id
-          ? {
-              ...i,
-              name: trimmed,
-              category: edit.category.trim() || null,
-              default_unit: edit.unit.trim() || null,
-            }
-          : i,
-      ),
-    );
-    setEditId(null);
-  }
-
-  async function remove(id: string) {
-    if (!confirm("Remove this item from the catalog?")) return;
-    const { error } = await supabase.from("ingredients").delete().eq("id", id);
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    setItems((c) => c.filter((i) => i.id !== id));
   }
 
   return (
     <div>
-      <form
-        onSubmit={addItem}
-        className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]"
-      >
+      <form onSubmit={addItem} className="mb-4 flex gap-2">
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Item name (e.g. Eggs)"
-          className="rounded-lg border border-slate-300 px-3 py-2"
-        />
-        <input
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          placeholder="Category (e.g. dairy)"
-          className="rounded-lg border border-slate-300 px-3 py-2"
-        />
-        <input
-          value={unit}
-          onChange={(e) => setUnit(e.target.value)}
-          placeholder="Unit (e.g. dozen)"
-          className="rounded-lg border border-slate-300 px-3 py-2"
+          placeholder="Add item (e.g. Eggs)"
+          className="flex-1 rounded-lg border border-slate-300 px-3 py-2"
         />
         <button
           disabled={adding}
@@ -162,79 +86,27 @@ export default function CatalogManager({
       />
 
       <ul className="flex flex-col gap-1">
-        {filtered.map((i) =>
-          editId === i.id ? (
-            <li
-              key={i.id}
-              className="grid grid-cols-1 gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 sm:grid-cols-[1fr_1fr_1fr_auto]"
+        {filtered.map((i) => (
+          <li key={i.id}>
+            <Link
+              href={`/family/catalog/${i.id}`}
+              className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 hover:border-emerald-300"
             >
-              <input
-                value={edit.name}
-                onChange={(e) => setEdit({ ...edit, name: e.target.value })}
-                className="rounded border border-slate-300 px-2 py-1"
-              />
-              <input
-                value={edit.category}
-                onChange={(e) =>
-                  setEdit({ ...edit, category: e.target.value })
-                }
-                placeholder="category"
-                className="rounded border border-slate-300 px-2 py-1"
-              />
-              <input
-                value={edit.unit}
-                onChange={(e) => setEdit({ ...edit, unit: e.target.value })}
-                placeholder="unit"
-                className="rounded border border-slate-300 px-2 py-1"
-              />
-              <div className="flex gap-2">
-                <button
-                  onClick={() => saveEdit(i.id)}
-                  className="rounded bg-emerald-600 px-3 py-1 text-sm font-medium text-white"
-                >
-                  Save
-                </button>
-                <button
-                  onClick={() => setEditId(null)}
-                  className="rounded border border-slate-300 px-3 py-1 text-sm"
-                >
-                  Cancel
-                </button>
-              </div>
-            </li>
-          ) : (
-            <li
-              key={i.id}
-              className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2"
-            >
-              <span className="flex-1">
+              <span>
                 {i.name}
                 {i.category && (
                   <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
                     {i.category}
                   </span>
                 )}
-                {i.default_unit && (
-                  <span className="ml-2 text-xs text-slate-400">
-                    {i.default_unit}
-                  </span>
+                {i.aisle && (
+                  <span className="ml-2 text-xs text-slate-400">{i.aisle}</span>
                 )}
               </span>
-              <button
-                onClick={() => startEdit(i)}
-                className="text-sm text-slate-500 hover:text-slate-800"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => remove(i.id)}
-                className="text-sm text-slate-400 hover:text-red-600"
-              >
-                Delete
-              </button>
-            </li>
-          ),
-        )}
+              <span className="text-slate-300">›</span>
+            </Link>
+          </li>
+        ))}
         {filtered.length === 0 && (
           <li className="text-sm text-slate-500">No matching items.</li>
         )}

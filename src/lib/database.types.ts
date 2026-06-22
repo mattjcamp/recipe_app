@@ -41,6 +41,9 @@ export interface Ingredient {
   name: string;
   default_unit: string | null;
   category: string | null;
+  aisle: string | null;
+  notes: string | null;
+  image_path: string | null;
 }
 
 export interface Recipe {

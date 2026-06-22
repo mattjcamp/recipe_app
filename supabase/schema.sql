@@ -106,6 +106,9 @@ create table ingredients (
   name         text not null unique,
   default_unit text,
   category     text,                       -- produce, dairy, pantry, ...
+  aisle        text,                       -- default aisle, flows into list items
+  notes        text,                       -- default notes
+  image_path   text,                       -- default photo (recipe-photos bucket)
   created_at   timestamptz not null default now()
 );
 

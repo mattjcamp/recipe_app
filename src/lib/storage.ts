@@ -7,7 +7,7 @@ export const SIGNED_URL_TTL = 60 * 60; // 1 hour
 // bucket RLS policies (which check storage.foldername(name)[1]) allow access.
 export function photoPath(
   familyId: string,
-  scope: "recipes" | "grocery",
+  scope: "recipes" | "grocery" | "catalog",
   ownerId: string,
   fileName: string,
 ) {

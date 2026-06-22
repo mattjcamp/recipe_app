@@ -145,9 +145,14 @@ create table grocery_lists (
   family_id   uuid not null references families(id) on delete cascade,
   name        text not null,
   is_archived boolean not null default false,
+  is_favorite boolean not null default false,  -- the one shown on the Lists tab
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
+
+-- At most one favorite list per family.
+create unique index grocery_lists_one_favorite_per_family
+  on grocery_lists (family_id) where is_favorite;
 
 create table grocery_list_items (
   id            uuid primary key default gen_random_uuid(),

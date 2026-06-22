@@ -75,6 +75,7 @@ export interface GroceryList {
   family_id: string;
   name: string;
   is_archived: boolean;
+  is_favorite: boolean;
   created_at: string;
   updated_at: string;
 }

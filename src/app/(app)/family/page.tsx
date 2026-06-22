@@ -67,6 +67,13 @@ export default async function FamilyPage({
       )}
 
       <Link
+        href="/family/lists"
+        className="mb-2 flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 hover:border-emerald-300"
+      >
+        <span className="font-medium">🛒 Grocery lists</span>
+        <span className="text-slate-300">›</span>
+      </Link>
+      <Link
         href="/family/catalog"
         className="mb-6 flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 hover:border-emerald-300"
       >

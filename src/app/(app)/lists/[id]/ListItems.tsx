@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { GroceryListItem } from "@/lib/database.types";
-import { PHOTO_BUCKET, SIGNED_URL_TTL } from "@/lib/storage";
 import { toggleItem } from "../actions";
 
 export default function ListItems({
@@ -15,8 +14,6 @@ export default function ListItems({
   initialItems: GroceryListItem[];
 }) {
   const [items, setItems] = useState(initialItems);
-  // Resolved signed URLs for item photos, keyed by item id.
-  const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [, startTransition] = useTransition();
 
   // Realtime: reflect inserts/updates/deletes from other family members live.
@@ -58,34 +55,12 @@ export default function ListItems({
     };
   }, [listId]);
 
-  // Resolve signed URLs for any item that has a photo but no thumbnail yet.
-  useEffect(() => {
-    const supabase = createClient();
-    const missing = items.filter((i) => i.image_path && !thumbs[i.id]);
-    if (missing.length === 0) return;
-    let cancelled = false;
-    (async () => {
-      const entries: [string, string][] = [];
-      for (const item of missing) {
-        const { data } = await supabase.storage
-          .from(PHOTO_BUCKET)
-          .createSignedUrl(item.image_path as string, SIGNED_URL_TTL);
-        if (data?.signedUrl) entries.push([item.id, data.signedUrl]);
-      }
-      if (!cancelled && entries.length)
-        setThumbs((t) => ({ ...t, ...Object.fromEntries(entries) }));
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [items, thumbs]);
-
   if (items.length === 0) {
     return <p className="text-sm text-slate-500">No items yet. Add one above.</p>;
   }
 
   return (
-    <ul className="flex flex-col gap-1">
+    <ul className="flex flex-col gap-2">
       {items.map((item) => {
         const label = [item.quantity, item.unit, item.free_text]
           .filter(Boolean)
@@ -93,7 +68,7 @@ export default function ListItems({
         return (
           <li
             key={item.id}
-            className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2"
+            className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-4"
           >
             <input
               type="checkbox"
@@ -112,19 +87,10 @@ export default function ListItems({
               className="h-5 w-5 shrink-0 accent-emerald-600"
             />
 
-            {thumbs[item.id] && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={thumbs[item.id]}
-                alt=""
-                className="h-9 w-9 shrink-0 rounded object-cover"
-              />
-            )}
-
             {/* Tapping the row opens the detail screen for editing. */}
             <Link
               href={`/lists/${listId}/items/${item.id}`}
-              className="flex flex-1 items-center justify-between gap-2 py-1"
+              className="flex flex-1 items-center justify-between gap-2"
             >
               <span
                 className={

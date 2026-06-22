@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { GroceryList, GroceryListItem } from "@/lib/database.types";
-import { getCurrentFamily } from "@/lib/family";
 import { addItem } from "../actions";
 import ListItems from "./ListItems";
 
@@ -21,8 +20,6 @@ export default async function ListDetailPage({
     .maybeSingle();
 
   if (!list) notFound();
-
-  const family = await getCurrentFamily();
 
   const { data: items } = await supabase
     .from("grocery_list_items")
@@ -54,7 +51,6 @@ export default async function ListDetailPage({
 
       <ListItems
         listId={id}
-        familyId={family?.familyId ?? ""}
         initialItems={(items as GroceryListItem[]) ?? []}
       />
     </div>

@@ -158,6 +158,8 @@ create table grocery_list_items (
   unit          text,
   is_checked    boolean not null default false,
   image_path    text,                       -- camera photo in recipe-photos bucket
+  notes         text,
+  aisle         text,
   added_by      uuid references auth.users(id) on delete set null,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now(),

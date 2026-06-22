@@ -1,18 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
+import { useEffect, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { GroceryListItem } from "@/lib/database.types";
-import { PHOTO_BUCKET, SIGNED_URL_TTL, photoPath } from "@/lib/storage";
-import { toggleItem, deleteItem, setItemImage } from "../actions";
+import { PHOTO_BUCKET, SIGNED_URL_TTL } from "@/lib/storage";
+import { toggleItem } from "../actions";
 
 export default function ListItems({
   listId,
-  familyId,
   initialItems,
 }: {
   listId: string;
-  familyId: string;
   initialItems: GroceryListItem[];
 }) {
   const [items, setItems] = useState(initialItems);
@@ -87,138 +86,63 @@ export default function ListItems({
 
   return (
     <ul className="flex flex-col gap-1">
-      {items.map((item) => (
-        <ItemRow
-          key={item.id}
-          item={item}
-          listId={listId}
-          familyId={familyId}
-          thumbUrl={thumbs[item.id]}
-          onToggle={(checked) => {
-            setItems((c) =>
-              c.map((i) =>
-                i.id === item.id ? { ...i, is_checked: checked } : i,
-              ),
-            );
-            startTransition(() => {
-              void toggleItem(item.id, checked, listId);
-            });
-          }}
-          onDelete={() =>
-            startTransition(() => {
-              setItems((c) => c.filter((i) => i.id !== item.id));
-              void deleteItem(item.id, listId);
-            })
-          }
-          onPhoto={(path, signedUrl) => {
-            setItems((c) =>
-              c.map((i) =>
-                i.id === item.id ? { ...i, image_path: path } : i,
-              ),
-            );
-            if (signedUrl)
-              setThumbs((t) => ({ ...t, [item.id]: signedUrl }));
-            startTransition(() => {
-              void setItemImage(item.id, listId, path);
-            });
-          }}
-        />
-      ))}
+      {items.map((item) => {
+        const label = [item.quantity, item.unit, item.free_text]
+          .filter(Boolean)
+          .join(" ");
+        return (
+          <li
+            key={item.id}
+            className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2"
+          >
+            <input
+              type="checkbox"
+              checked={item.is_checked}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setItems((c) =>
+                  c.map((i) =>
+                    i.id === item.id ? { ...i, is_checked: checked } : i,
+                  ),
+                );
+                startTransition(() => {
+                  void toggleItem(item.id, checked, listId);
+                });
+              }}
+              className="h-5 w-5 shrink-0 accent-emerald-600"
+            />
+
+            {thumbs[item.id] && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={thumbs[item.id]}
+                alt=""
+                className="h-9 w-9 shrink-0 rounded object-cover"
+              />
+            )}
+
+            {/* Tapping the row opens the detail screen for editing. */}
+            <Link
+              href={`/lists/${listId}/items/${item.id}`}
+              className="flex flex-1 items-center justify-between gap-2 py-1"
+            >
+              <span
+                className={
+                  item.is_checked ? "text-slate-400 line-through" : ""
+                }
+              >
+                {label}
+                {item.aisle && (
+                  <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
+                    {item.aisle}
+                  </span>
+                )}
+              </span>
+              <span className="text-slate-300">›</span>
+            </Link>
+          </li>
+        );
+      })}
     </ul>
-  );
-}
-
-function ItemRow({
-  item,
-  familyId,
-  thumbUrl,
-  onToggle,
-  onDelete,
-  onPhoto,
-}: {
-  item: GroceryListItem;
-  listId: string;
-  familyId: string;
-  thumbUrl?: string;
-  onToggle: (checked: boolean) => void;
-  onDelete: () => void;
-  onPhoto: (path: string, signedUrl: string | null) => void;
-}) {
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file || !familyId) return;
-    setBusy(true);
-    const supabase = createClient();
-    const path = photoPath(familyId, "grocery", item.id, file.name);
-    const { error } = await supabase.storage
-      .from(PHOTO_BUCKET)
-      .upload(path, file, { upsert: true });
-    if (!error) {
-      const { data } = await supabase.storage
-        .from(PHOTO_BUCKET)
-        .createSignedUrl(path, SIGNED_URL_TTL);
-      onPhoto(path, data?.signedUrl ?? null);
-    }
-    setBusy(false);
-  }
-
-  const label = [item.quantity, item.unit, item.free_text]
-    .filter(Boolean)
-    .join(" ");
-
-  return (
-    <li className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
-      <input
-        type="checkbox"
-        checked={item.is_checked}
-        onChange={(e) => onToggle(e.target.checked)}
-        className="h-5 w-5 accent-emerald-600"
-      />
-
-      {thumbUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={thumbUrl}
-          alt=""
-          className="h-9 w-9 rounded object-cover"
-        />
-      )}
-
-      <span
-        className={`flex-1 ${item.is_checked ? "text-slate-400 line-through" : ""}`}
-      >
-        {label}
-      </span>
-
-      <button
-        onClick={() => fileRef.current?.click()}
-        disabled={busy}
-        className="text-slate-400 hover:text-emerald-600"
-        aria-label="Take photo"
-        title="Take photo"
-      >
-        {busy ? "…" : "📷"}
-      </button>
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={handleFile}
-      />
-
-      <button
-        onClick={onDelete}
-        className="text-slate-400 hover:text-red-600"
-        aria-label="Delete item"
-      >
-        ✕
-      </button>
-    </li>
   );
 }

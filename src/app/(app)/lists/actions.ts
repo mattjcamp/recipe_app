@@ -66,5 +66,44 @@ export async function setItemImage(
     .from("grocery_list_items")
     .update({ image_path: path })
     .eq("id", id);
+  revalidatePath(`/lists/${listId}/items/${id}`);
   revalidatePath(`/lists/${listId}`);
+}
+
+// Save the editable detail fields from the item detail screen.
+export async function updateItemDetails(formData: FormData) {
+  const id = String(formData.get("item_id"));
+  const listId = String(formData.get("list_id"));
+  if (!id || !listId) return;
+
+  const qtyRaw = String(formData.get("quantity") || "").trim();
+  const quantity = qtyRaw === "" ? null : Number(qtyRaw);
+
+  const supabase = await createClient();
+  await supabase
+    .from("grocery_list_items")
+    .update({
+      free_text: String(formData.get("free_text") || "").trim() || null,
+      quantity: quantity != null && !Number.isNaN(quantity) ? quantity : null,
+      unit: String(formData.get("unit") || "").trim() || null,
+      notes: String(formData.get("notes") || "").trim() || null,
+      aisle: String(formData.get("aisle") || "").trim() || null,
+    })
+    .eq("id", id);
+
+  revalidatePath(`/lists/${listId}/items/${id}`);
+  revalidatePath(`/lists/${listId}`);
+  redirect(`/lists/${listId}`);
+}
+
+// Form-based delete used on the detail screen (with a confirm in the UI).
+export async function deleteItemForm(formData: FormData) {
+  const id = String(formData.get("item_id"));
+  const listId = String(formData.get("list_id"));
+  if (!id || !listId) return;
+
+  const supabase = await createClient();
+  await supabase.from("grocery_list_items").delete().eq("id", id);
+  revalidatePath(`/lists/${listId}`);
+  redirect(`/lists/${listId}`);
 }

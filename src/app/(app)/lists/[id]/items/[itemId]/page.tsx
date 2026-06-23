@@ -4,10 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import type { GroceryListItem, Location } from "@/lib/database.types";
 import { getCurrentFamily } from "@/lib/family";
 import { PHOTO_BUCKET, SIGNED_URL_TTL } from "@/lib/storage";
-import ItemFields from "@/components/ItemFields";
 import PhotoCapture from "@/components/PhotoCapture";
-import { updateItemDetails, setItemImage } from "../../../actions";
-import DeleteItem from "./DeleteItem";
+import { setItemImage } from "../../../actions";
+import ItemDetailForm from "./ItemDetailForm";
 
 export default async function ItemDetailPage({
   params,
@@ -61,25 +60,18 @@ export default async function ItemDetailPage({
         </div>
       )}
 
-      <form action={updateItemDetails} className="flex flex-col gap-4">
-        <input type="hidden" name="item_id" value={it.id} />
-        <input type="hidden" name="list_id" value={listId} />
-        <ItemFields
-          defaults={{
-            name: it.free_text,
-            quantity: it.quantity,
-            unit: it.unit,
-            location_id: it.location_id,
-            notes: it.notes,
-          }}
-          locations={locations}
-        />
-        <button className="rounded-lg bg-emerald-600 px-3 py-2 font-medium text-white hover:bg-emerald-700">
-          Save
-        </button>
-      </form>
-
-      <DeleteItem itemId={it.id} listId={listId} />
+      <ItemDetailForm
+        itemId={it.id}
+        listId={listId}
+        defaults={{
+          name: it.free_text,
+          quantity: it.quantity,
+          unit: it.unit,
+          location_id: it.location_id,
+          notes: it.notes,
+        }}
+        locations={locations}
+      />
     </div>
   );
 }

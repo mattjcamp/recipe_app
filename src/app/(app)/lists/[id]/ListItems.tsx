@@ -1,10 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { GroceryListItem, Location } from "@/lib/database.types";
-import { toggleItem } from "../actions";
+import { idbBulkPut, idbPut, idbDelete } from "@/lib/offline/idb";
+import {
+  getListItems,
+  reconcileListItems,
+  subscribe,
+  sync,
+  toggleItem as storeToggle,
+  moveItems as storeMove,
+} from "@/lib/offline/store";
 
 function aisleSortKey(loc: Location | null): number {
   if (!loc) return Number.POSITIVE_INFINITY;
@@ -17,71 +25,87 @@ export default function ListItems({
   initialItems,
   locations = {},
   showStoreFilter = true,
-  moveAction,
+  moveTargetListId,
   moveLabel,
-  moveParamName,
-  moveParamValue,
 }: {
   listId: string;
   initialItems: GroceryListItem[];
   locations?: Record<string, Location>;
   showStoreFilter?: boolean;
-  // Optional "move checked items" button, rendered live when any item is checked.
-  moveAction?: (formData: FormData) => void | Promise<void>;
+  moveTargetListId?: string;
   moveLabel?: string;
-  moveParamName?: string;
-  moveParamValue?: string;
 }) {
-  const [items, setItems] = useState(initialItems);
-  const [store, setStore] = useState(""); // "" = all stores
-  const [, startTransition] = useTransition();
+  const [items, setItems] = useState<GroceryListItem[]>(initialItems);
+  const [store, setStore] = useState(""); // store filter ("" = all)
 
-  // Realtime sync.
+  const reload = useCallback(async () => {
+    setItems(await getListItems(listId));
+  }, [listId]);
+
+  // Local-first load: read IndexedDB immediately (works offline), then if
+  // online drain the outbox and reconcile with the server.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      let local = await getListItems(listId);
+      if (local.length === 0 && initialItems.length > 0) {
+        await idbBulkPut("items", initialItems);
+        local = initialItems;
+      }
+      if (active) setItems(local);
+
+      if (typeof navigator !== "undefined" && navigator.onLine) {
+        await sync();
+        const supabase = createClient();
+        const { data } = await supabase
+          .from("grocery_list_items")
+          .select("*")
+          .eq("list_id", listId);
+        if (data) {
+          await reconcileListItems(listId, data as GroceryListItem[]);
+          if (active) setItems(await getListItems(listId));
+        }
+      }
+    })();
+
+    const unsub = subscribe(() => {
+      void reload();
+    });
+    return () => {
+      active = false;
+      unsub();
+    };
+  }, [listId, initialItems, reload]);
+
+  // Realtime: mirror other devices' changes into the local cache.
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
       .channel(`list-${listId}`)
-      // No server-side filter: we handle list_id matching client-side so that
-      // items MOVED to another list (e.g. grocery -> pantry) disappear here live.
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "grocery_list_items" },
-        (payload) => {
-          setItems((current) => {
-            if (payload.eventType === "INSERT") {
-              const row = payload.new as GroceryListItem;
-              if (row.list_id !== listId) return current;
-              if (current.some((i) => i.id === row.id)) return current;
-              return [...current, row];
-            }
-            if (payload.eventType === "UPDATE") {
-              const row = payload.new as GroceryListItem;
-              if (row.list_id !== listId) {
-                // moved to a different list — drop it from this view
-                return current.filter((i) => i.id !== row.id);
-              }
-              if (current.some((i) => i.id === row.id))
-                return current.map((i) => (i.id === row.id ? row : i));
-              return [...current, row]; // moved into this list
-            }
-            if (payload.eventType === "DELETE") {
-              const old = payload.old as { id: string };
-              return current.filter((i) => i.id !== old.id);
-            }
-            return current;
-          });
+        async (payload) => {
+          if (payload.eventType === "DELETE") {
+            const old = payload.old as { id: string };
+            await idbDelete("items", old.id);
+          } else {
+            const row = payload.new as GroceryListItem;
+            if (row.list_id === listId) await idbPut("items", row);
+            else await idbDelete("items", row.id);
+          }
+          void reload();
         },
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [listId]);
+  }, [listId, reload]);
 
   const locOf = (i: GroceryListItem): Location | null =>
     i.location_id ? locations[i.location_id] ?? null : null;
 
-  // Distinct stores present among the items (for the filter).
   const stores = useMemo(() => {
     const set = new Set<string>();
     for (const i of items) {
@@ -92,12 +116,10 @@ export default function ListItems({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, locations]);
 
-  // Filter by store, then group by location (aisle), sorted by aisle number.
   const groups = useMemo(() => {
     const filtered = store
       ? items.filter((i) => locOf(i)?.store === store)
       : items;
-
     const byKey = new Map<
       string,
       { loc: Location | null; items: GroceryListItem[] }
@@ -108,7 +130,6 @@ export default function ListItems({
       if (!byKey.has(key)) byKey.set(key, { loc, items: [] });
       byKey.get(key)!.items.push(i);
     }
-
     const arr = [...byKey.values()];
     arr.sort((a, b) => {
       const ak = aisleSortKey(a.loc);
@@ -125,21 +146,11 @@ export default function ListItems({
   }, [items, locations, store]);
 
   const showHeadings = groups.some((g) => g.loc);
-
-  function onToggle(item: GroceryListItem, checked: boolean) {
-    setItems((c) =>
-      c.map((i) => (i.id === item.id ? { ...i, is_checked: checked } : i)),
-    );
-    startTransition(() => {
-      void toggleItem(item.id, checked, listId);
-    });
-  }
+  const anyChecked = items.some((i) => i.is_checked);
 
   if (items.length === 0) {
     return <p className="text-sm text-slate-500">No items yet. Add one above.</p>;
   }
-
-  const anyChecked = items.some((i) => i.is_checked);
 
   return (
     <div>
@@ -177,7 +188,16 @@ export default function ListItems({
                   <input
                     type="checkbox"
                     checked={item.is_checked}
-                    onChange={(e) => onToggle(item, e.target.checked)}
+                    onChange={(e) => {
+                      // optimistic, then persist locally + queue
+                      const checked = e.target.checked;
+                      setItems((c) =>
+                        c.map((i) =>
+                          i.id === item.id ? { ...i, is_checked: checked } : i,
+                        ),
+                      );
+                      void storeToggle(item.id, checked);
+                    }}
                     className="h-5 w-5 shrink-0 accent-emerald-600"
                   />
                   <Link
@@ -205,15 +225,18 @@ export default function ListItems({
         ))}
       </div>
 
-      {moveAction && moveLabel && anyChecked && (
-        <form action={moveAction} className="mt-6">
-          {moveParamName && (
-            <input type="hidden" name={moveParamName} value={moveParamValue} />
-          )}
-          <button className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-            {moveLabel}
-          </button>
-        </form>
+      {moveTargetListId && moveLabel && anyChecked && (
+        <button
+          onClick={() =>
+            void storeMove(
+              items.filter((i) => i.is_checked).map((i) => i.id),
+              moveTargetListId,
+            )
+          }
+          className="mt-6 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        >
+          {moveLabel}
+        </button>
       )}
     </div>
   );

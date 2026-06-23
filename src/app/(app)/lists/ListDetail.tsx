@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getOrCreatePantry } from "@/lib/pantry";
 import type {
   GroceryList,
   GroceryListItem,
@@ -9,7 +10,6 @@ import type {
 } from "@/lib/database.types";
 import AddItem from "./[id]/AddItem";
 import ListItems from "./[id]/ListItems";
-import { moveCheckedToPantry } from "./actions";
 
 // Shared list view used by both the Lists tab (favorite) and /lists/[id].
 export default async function ListDetail({
@@ -28,6 +28,7 @@ export default async function ListDetail({
     .maybeSingle();
 
   if (!list) notFound();
+  const isGrocery = (list as GroceryList).kind === "grocery";
 
   const [{ data: items }, { data: catalog }, { data: locData }] =
     await Promise.all([
@@ -36,20 +37,15 @@ export default async function ListDetail({
         .select("*")
         .eq("list_id", listId)
         .order("created_at", { ascending: true }),
-      supabase
-        .from("ingredients")
-        .select("id, name, default_unit")
-        .order("name", { ascending: true }),
+      supabase.from("ingredients").select("*").order("name", { ascending: true }),
       supabase.from("locations").select("*"),
     ]);
 
   const locations: Record<string, Location> = {};
-  for (const l of (locData as Location[]) ?? []) {
-    locations[l.id] = l;
-  }
+  for (const l of (locData as Location[]) ?? []) locations[l.id] = l;
 
-  const groceryItems = (items as GroceryListItem[]) ?? [];
-  const isGrocery = (list as GroceryList).kind === "grocery";
+  // Grocery lists can move purchased items to the pantry.
+  const pantry = isGrocery ? await getOrCreatePantry() : null;
 
   return (
     <div>
@@ -74,21 +70,14 @@ export default async function ListDetail({
         )}
       </div>
 
-      <AddItem
-        listId={listId}
-        catalog={
-          (catalog as Pick<Ingredient, "id" | "name" | "default_unit">[]) ?? []
-        }
-      />
+      <AddItem listId={listId} catalog={(catalog as Ingredient[]) ?? []} />
 
       <ListItems
         listId={listId}
-        initialItems={groceryItems}
+        initialItems={(items as GroceryListItem[]) ?? []}
         locations={locations}
-        moveAction={isGrocery ? moveCheckedToPantry : undefined}
-        moveLabel={isGrocery ? "Move checked items → Pantry" : undefined}
-        moveParamName="list_id"
-        moveParamValue={listId}
+        moveTargetListId={pantry?.id}
+        moveLabel={pantry ? "Move checked items → Pantry" : undefined}
       />
     </div>
   );

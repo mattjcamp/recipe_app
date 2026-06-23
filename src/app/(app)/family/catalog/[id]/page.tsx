@@ -4,9 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import type { Ingredient, Location } from "@/lib/database.types";
 import { getCurrentFamily } from "@/lib/family";
 import { PHOTO_BUCKET, SIGNED_URL_TTL } from "@/lib/storage";
-import { formatLocation } from "@/lib/location";
-import { updateIngredient } from "../actions";
-import CatalogPhoto from "./CatalogPhoto";
+import ItemFields from "@/components/ItemFields";
+import PhotoCapture from "@/components/PhotoCapture";
+import { updateIngredient, setIngredientImage } from "../actions";
 import DeleteIngredient from "./DeleteIngredient";
 
 export default async function CatalogItemPage({
@@ -59,82 +59,28 @@ export default async function CatalogItemPage({
 
       {family && (
         <div className="mb-5">
-          <CatalogPhoto
-            ingredientId={ing.id}
+          <PhotoCapture
             familyId={family.familyId}
+            scope="catalog"
+            ownerId={ing.id}
             initialUrl={photoUrl}
+            persist={setIngredientImage.bind(null, ing.id)}
           />
         </div>
       )}
 
       <form action={updateIngredient} className="flex flex-col gap-4">
         <input type="hidden" name="id" value={ing.id} />
-
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-slate-600">Name</span>
-          <input
-            name="name"
-            defaultValue={ing.name}
-            placeholder="e.g. Eggs"
-            className="rounded-lg border border-slate-300 px-3 py-2"
-          />
-        </label>
-
-        <div className="grid grid-cols-2 gap-3">
-          <label className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-slate-600">
-              Default unit
-            </span>
-            <input
-              name="default_unit"
-              defaultValue={ing.default_unit ?? ""}
-              placeholder="e.g. dozen"
-              className="rounded-lg border border-slate-300 px-3 py-2"
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-slate-600">Category</span>
-            <input
-              name="category"
-              defaultValue={ing.category ?? ""}
-              placeholder="e.g. dairy"
-              className="rounded-lg border border-slate-300 px-3 py-2"
-            />
-          </label>
-        </div>
-
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-slate-600">Location</span>
-          <select
-            name="location_id"
-            defaultValue={ing.location_id ?? ""}
-            className="rounded-lg border border-slate-300 px-3 py-2"
-          >
-            <option value="">— None —</option>
-            {locations.map((l) => (
-              <option key={l.id} value={l.id}>
-                {formatLocation(l) || "(unnamed)"}
-              </option>
-            ))}
-          </select>
-          {locations.length === 0 && (
-            <span className="text-xs text-slate-400">
-              Add locations in Family → Locations.
-            </span>
-          )}
-        </label>
-
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-slate-600">Notes</span>
-          <textarea
-            name="notes"
-            rows={4}
-            defaultValue={ing.notes ?? ""}
-            placeholder="Brand, size, substitutions…"
-            className="rounded-lg border border-slate-300 px-3 py-2"
-          />
-        </label>
-
+        <ItemFields
+          defaults={{
+            name: ing.name,
+            quantity: ing.quantity,
+            unit: ing.default_unit,
+            location_id: ing.location_id,
+            notes: ing.notes,
+          }}
+          locations={locations}
+        />
         <button className="rounded-lg bg-emerald-600 px-3 py-2 font-medium text-white hover:bg-emerald-700">
           Save
         </button>

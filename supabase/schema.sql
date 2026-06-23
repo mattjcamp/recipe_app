@@ -120,7 +120,8 @@ create table ingredients (
   family_id    uuid not null references families(id) on delete cascade,
   name         text not null,
   default_unit text,
-  category     text,                       -- produce, dairy, pantry, ...
+  quantity     numeric,                    -- default quantity, flows into list items
+  category     text,                       -- (legacy; no longer surfaced in the UI)
   aisle        text,                       -- (legacy free-text; superseded by location_id)
   notes        text,                       -- default notes
   image_path   text,                       -- default photo (recipe-photos bucket)

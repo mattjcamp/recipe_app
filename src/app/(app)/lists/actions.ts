@@ -31,21 +31,23 @@ export async function addItem(formData: FormData) {
   let notes: string | null = null;
   let imagePath: string | null = null;
   let locationId: string | null = null;
+  let quantity: number | null = null;
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Pull the template's defaults so the list item inherits unit/location/notes/photo.
+  // Pull the template's defaults so the list item inherits the same attributes.
   if (ingredientId) {
     const { data: ing } = await supabase
       .from("ingredients")
-      .select("default_unit, notes, image_path, location_id")
+      .select("default_unit, quantity, notes, image_path, location_id")
       .eq("id", ingredientId)
       .maybeSingle();
     if (ing) {
       unit = unit ?? ing.default_unit ?? null;
+      quantity = ing.quantity ?? null;
       notes = ing.notes ?? null;
       imagePath = ing.image_path ?? null;
       locationId = ing.location_id ?? null;
@@ -58,6 +60,7 @@ export async function addItem(formData: FormData) {
     // entry is later deleted (the FK is ON DELETE SET NULL).
     free_text: text,
     ingredient_id: ingredientId,
+    quantity,
     unit,
     notes,
     image_path: imagePath,
@@ -112,7 +115,7 @@ export async function updateItemDetails(formData: FormData) {
   await supabase
     .from("grocery_list_items")
     .update({
-      free_text: String(formData.get("free_text") || "").trim() || null,
+      free_text: String(formData.get("name") || "").trim() || null,
       quantity: quantity != null && !Number.isNaN(quantity) ? quantity : null,
       unit: String(formData.get("unit") || "").trim() || null,
       notes: String(formData.get("notes") || "").trim() || null,

@@ -94,17 +94,7 @@ export default function CatalogManager({
               href={`/family/catalog/${i.id}`}
               className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 hover:border-emerald-300"
             >
-              <span>
-                {i.name}
-                {i.category && (
-                  <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
-                    {i.category}
-                  </span>
-                )}
-                {i.aisle && (
-                  <span className="ml-2 text-xs text-slate-400">{i.aisle}</span>
-                )}
-              </span>
+              <span>{i.name}</span>
               <span className="text-slate-300">›</span>
             </Link>
           </li>

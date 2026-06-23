@@ -11,13 +11,16 @@ export async function updateIngredient(formData: FormData) {
   const name = String(formData.get("name") || "").trim();
   if (!name) redirect(`/family/catalog/${id}?error=Name is required`);
 
+  const qtyRaw = String(formData.get("quantity") || "").trim();
+  const quantity = qtyRaw === "" ? null : Number(qtyRaw);
+
   const supabase = await createClient();
   const { error } = await supabase
     .from("ingredients")
     .update({
       name,
-      default_unit: String(formData.get("default_unit") || "").trim() || null,
-      category: String(formData.get("category") || "").trim() || null,
+      quantity: quantity != null && !Number.isNaN(quantity) ? quantity : null,
+      default_unit: String(formData.get("unit") || "").trim() || null,
       location_id: String(formData.get("location_id") || "") || null,
       notes: String(formData.get("notes") || "").trim() || null,
     })

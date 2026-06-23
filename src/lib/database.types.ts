@@ -51,6 +51,7 @@ export interface Ingredient {
   family_id: string;
   name: string;
   default_unit: string | null;
+  quantity: number | null;
   category: string | null;
   aisle: string | null;
   notes: string | null;

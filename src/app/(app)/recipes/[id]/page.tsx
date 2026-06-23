@@ -55,9 +55,17 @@ export default async function RecipeDetailPage({
 
   return (
     <div>
-      <Link href="/recipes" className="text-sm text-slate-500">
-        ← All recipes
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link href="/recipes" className="text-sm text-slate-500">
+          ← All recipes
+        </Link>
+        <Link
+          href={`/recipes/${r.id}/edit`}
+          className="text-sm font-medium text-emerald-700 hover:underline"
+        >
+          Edit
+        </Link>
+      </div>
       <h1 className="mb-1 mt-1 text-2xl font-semibold">{r.title}</h1>
       {r.description && <p className="mb-3 text-slate-600">{r.description}</p>}
 

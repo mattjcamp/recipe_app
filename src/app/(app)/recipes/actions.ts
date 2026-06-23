@@ -98,6 +98,58 @@ export async function addRecipeToList(recipeId: string, listId: string) {
   redirect(`/lists/${listId}`);
 }
 
+export async function updateRecipe(formData: FormData) {
+  const id = String(formData.get("id") || "");
+  if (!id) redirect("/recipes");
+
+  const title = String(formData.get("title") || "").trim();
+  if (!title) redirect(`/recipes/${id}/edit?error=Title is required`);
+
+  const steps = String(formData.get("instructions") || "")
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const ingredients = String(formData.get("ingredients") || "")
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("recipes")
+    .update({
+      title,
+      description: String(formData.get("description") || "") || null,
+      servings: numOrNull(formData.get("servings")),
+      prep_minutes: numOrNull(formData.get("prep_minutes")),
+      cook_minutes: numOrNull(formData.get("cook_minutes")),
+      instructions: steps,
+    })
+    .eq("id", id);
+
+  if (error) {
+    redirect(`/recipes/${id}/edit?error=${encodeURIComponent(error.message)}`);
+  }
+
+  // Replace the ingredient lines wholesale (simple + matches the textarea UX).
+  await supabase.from("recipe_ingredients").delete().eq("recipe_id", id);
+  if (ingredients.length > 0) {
+    await supabase.from("recipe_ingredients").insert(
+      ingredients.map((free_text, i) => ({
+        recipe_id: id,
+        free_text,
+        sort_order: i,
+      })),
+    );
+  }
+
+  revalidatePath(`/recipes/${id}`);
+  revalidatePath("/recipes");
+  redirect(`/recipes/${id}`);
+}
+
 // Persist the storage path of an uploaded recipe photo.
 export async function setRecipeImage(recipeId: string, path: string | null) {
   const supabase = await createClient();

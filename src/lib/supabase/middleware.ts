@@ -3,6 +3,14 @@ import { NextResponse, type NextRequest } from "next/server";
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
+// Persist auth cookies for ~400 days so installed (home-screen) apps stay
+// logged in across launches. Empty value = deletion (sign out) — leave as-is.
+const PERSIST_MAX_AGE = 60 * 60 * 24 * 400;
+function persist(value: string, options: CookieOptions): CookieOptions {
+  if (value === "") return options;
+  return { ...options, maxAge: PERSIST_MAX_AGE };
+}
+
 // Refreshes the auth session on every request and gates protected routes.
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -21,7 +29,7 @@ export async function updateSession(request: NextRequest) {
           );
           supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options),
+            supabaseResponse.cookies.set(name, value, persist(value, options)),
           );
         },
       },

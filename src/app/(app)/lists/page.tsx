@@ -10,6 +10,7 @@ export default async function ListsPage() {
   const { data: lists } = await supabase
     .from("grocery_lists")
     .select("*")
+    .eq("kind", "grocery")
     .eq("is_archived", false)
     .order("created_at", { ascending: true });
 

@@ -90,6 +90,7 @@ export interface GroceryList {
   id: string;
   family_id: string;
   name: string;
+  kind: "grocery" | "pantry";
   is_archived: boolean;
   is_favorite: boolean;
   created_at: string;

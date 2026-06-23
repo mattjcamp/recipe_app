@@ -13,6 +13,7 @@ export default async function ManageListsPage() {
   const { data } = await supabase
     .from("grocery_lists")
     .select("*")
+    .eq("kind", "grocery")
     .eq("is_archived", false)
     .order("created_at", { ascending: true });
 

@@ -30,24 +30,28 @@ export default function ListItems({
     const supabase = createClient();
     const channel = supabase
       .channel(`list-${listId}`)
+      // No server-side filter: we handle list_id matching client-side so that
+      // items MOVED to another list (e.g. grocery -> pantry) disappear here live.
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "grocery_list_items",
-          filter: `list_id=eq.${listId}`,
-        },
+        { event: "*", schema: "public", table: "grocery_list_items" },
         (payload) => {
           setItems((current) => {
             if (payload.eventType === "INSERT") {
               const row = payload.new as GroceryListItem;
+              if (row.list_id !== listId) return current;
               if (current.some((i) => i.id === row.id)) return current;
               return [...current, row];
             }
             if (payload.eventType === "UPDATE") {
               const row = payload.new as GroceryListItem;
-              return current.map((i) => (i.id === row.id ? row : i));
+              if (row.list_id !== listId) {
+                // moved to a different list — drop it from this view
+                return current.filter((i) => i.id !== row.id);
+              }
+              if (current.some((i) => i.id === row.id))
+                return current.map((i) => (i.id === row.id ? row : i));
+              return [...current, row]; // moved into this list
             }
             if (payload.eventType === "DELETE") {
               const old = payload.old as { id: string };

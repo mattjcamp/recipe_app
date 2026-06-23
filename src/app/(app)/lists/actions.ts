@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentFamily } from "@/lib/family";
+import { getOrCreatePantry } from "@/lib/pantry";
+import type { GroceryList } from "@/lib/database.types";
 
 export async function createList(formData: FormData) {
   const family = await getCurrentFamily();
@@ -100,6 +102,57 @@ export async function setItemImage(
     .eq("id", id);
   revalidatePath(`/lists/${listId}/items/${id}`);
   revalidatePath(`/lists/${listId}`);
+}
+
+// Move checked (purchased) items from a grocery list into the pantry.
+export async function moveCheckedToPantry(formData: FormData) {
+  const listId = String(formData.get("list_id") || "");
+  if (!listId) return;
+
+  const pantry = await getOrCreatePantry();
+  if (!pantry) return;
+
+  const supabase = await createClient();
+  await supabase
+    .from("grocery_list_items")
+    .update({ list_id: pantry.id, is_checked: false })
+    .eq("list_id", listId)
+    .eq("is_checked", true);
+
+  revalidatePath("/lists");
+  revalidatePath("/pantry");
+  revalidatePath(`/lists/${listId}`);
+}
+
+// Move checked (ready) pantry items into the family's grocery list.
+export async function moveCheckedToGroceryList(formData: FormData) {
+  const pantryId = String(formData.get("pantry_id") || "");
+  if (!pantryId) return;
+
+  const family = await getCurrentFamily();
+  if (!family) return;
+
+  const supabase = await createClient();
+  const { data: lists } = await supabase
+    .from("grocery_lists")
+    .select("*")
+    .eq("family_id", family.familyId)
+    .eq("kind", "grocery")
+    .eq("is_archived", false)
+    .order("created_at", { ascending: true });
+
+  const grocery = (lists as GroceryList[]) ?? [];
+  const target = grocery.find((l) => l.is_favorite) ?? grocery[0];
+  if (!target) return; // no grocery list to move into
+
+  await supabase
+    .from("grocery_list_items")
+    .update({ list_id: target.id, is_checked: false })
+    .eq("list_id", pantryId)
+    .eq("is_checked", true);
+
+  revalidatePath("/pantry");
+  revalidatePath("/lists");
 }
 
 // Save the editable detail fields from the item detail screen.

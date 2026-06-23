@@ -166,15 +166,18 @@ create table grocery_lists (
   id          uuid primary key default gen_random_uuid(),
   family_id   uuid not null references families(id) on delete cascade,
   name        text not null,
+  kind        text not null default 'grocery' check (kind in ('grocery','pantry')),
   is_archived boolean not null default false,
   is_favorite boolean not null default false,  -- the one shown on the Lists tab
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
 
--- At most one favorite list per family.
+-- At most one favorite grocery list, and one pantry, per family.
 create unique index grocery_lists_one_favorite_per_family
   on grocery_lists (family_id) where is_favorite;
+create unique index grocery_lists_one_pantry_per_family
+  on grocery_lists (family_id) where kind = 'pantry';
 
 create table grocery_list_items (
   id            uuid primary key default gen_random_uuid(),

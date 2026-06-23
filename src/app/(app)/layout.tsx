@@ -18,12 +18,18 @@ export default async function AppLayout({
       <OnlineBanner />
       <main className="flex-1 px-4 py-4">{children}</main>
 
-      <nav className="sticky bottom-0 grid grid-cols-3 border-t border-slate-200 bg-white">
+      <nav className="sticky bottom-0 grid grid-cols-4 border-t border-slate-200 bg-white">
         <Link
           href="/lists"
           className="py-3 text-center text-sm font-medium text-slate-700 hover:bg-slate-50"
         >
           🛒 Lists
+        </Link>
+        <Link
+          href="/pantry"
+          className="py-3 text-center text-sm font-medium text-slate-700 hover:bg-slate-50"
+        >
+          🥫 Pantry
         </Link>
         <Link
           href="/recipes"

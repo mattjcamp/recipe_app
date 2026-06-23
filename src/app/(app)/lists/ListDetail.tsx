@@ -9,6 +9,7 @@ import type {
 } from "@/lib/database.types";
 import AddItem from "./[id]/AddItem";
 import ListItems from "./[id]/ListItems";
+import { moveCheckedToPantry } from "./actions";
 
 // Shared list view used by both the Lists tab (favorite) and /lists/[id].
 export default async function ListDetail({
@@ -47,6 +48,10 @@ export default async function ListDetail({
     locations[l.id] = l;
   }
 
+  const groceryItems = (items as GroceryListItem[]) ?? [];
+  const isGrocery = (list as GroceryList).kind === "grocery";
+  const hasChecked = groceryItems.some((i) => i.is_checked);
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
@@ -79,9 +84,18 @@ export default async function ListDetail({
 
       <ListItems
         listId={listId}
-        initialItems={(items as GroceryListItem[]) ?? []}
+        initialItems={groceryItems}
         locations={locations}
       />
+
+      {isGrocery && hasChecked && (
+        <form action={moveCheckedToPantry} className="mt-6">
+          <input type="hidden" name="list_id" value={listId} />
+          <button className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            Move checked items → Pantry
+          </button>
+        </form>
+      )}
     </div>
   );
 }

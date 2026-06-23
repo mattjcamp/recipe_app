@@ -69,13 +69,17 @@ export default async function RecipeDetailPage({
           <p className="text-sm text-slate-500">No ingredients listed.</p>
         ) : (
           <ul className="list-inside list-disc space-y-1 text-slate-700">
-            {ings.map((ing) => (
-              <li key={ing.id}>
-                {[ing.quantity, ing.unit, ing.free_text]
-                  .filter(Boolean)
-                  .join(" ")}
-              </li>
-            ))}
+            {ings.map((ing) => {
+              const measure = [ing.quantity, ing.unit]
+                .filter(Boolean)
+                .join(" ");
+              return (
+                <li key={ing.id}>
+                  {ing.free_text}
+                  {measure && `, ${measure}`}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

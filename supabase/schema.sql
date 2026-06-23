@@ -97,6 +97,20 @@ as $$
 $$;
 
 -- =============================================================================
+-- Locations (store / aisle / aisle number) — family-scoped, reusable
+-- =============================================================================
+create table locations (
+  id         uuid primary key default gen_random_uuid(),
+  family_id  uuid not null references families(id) on delete cascade,
+  store      text,
+  aisle      text,
+  aisle_num  text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index on locations (family_id);
+
+-- =============================================================================
 -- Recipes
 -- =============================================================================
 
@@ -106,9 +120,10 @@ create table ingredients (
   name         text not null unique,
   default_unit text,
   category     text,                       -- produce, dairy, pantry, ...
-  aisle        text,                       -- default aisle, flows into list items
+  aisle        text,                       -- (legacy free-text; superseded by location_id)
   notes        text,                       -- default notes
   image_path   text,                       -- default photo (recipe-photos bucket)
+  location_id  uuid references locations(id) on delete set null,
   created_at   timestamptz not null default now()
 );
 
@@ -167,7 +182,8 @@ create table grocery_list_items (
   is_checked    boolean not null default false,
   image_path    text,                       -- camera photo in recipe-photos bucket
   notes         text,
-  aisle         text,
+  aisle         text,                       -- (legacy free-text; superseded by location_id)
+  location_id   uuid references locations(id) on delete set null,
   added_by      uuid references auth.users(id) on delete set null,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now(),
@@ -261,6 +277,7 @@ create trigger trg_grocery_lists_updated  before update on grocery_lists       f
 create trigger trg_grocery_items_updated  before update on grocery_list_items  for each row execute function set_updated_at();
 create trigger trg_pantry_updated         before update on pantry_items        for each row execute function set_updated_at();
 create trigger trg_meal_plans_updated     before update on meal_plans          for each row execute function set_updated_at();
+create trigger trg_locations_updated      before update on locations           for each row execute function set_updated_at();
 
 -- =============================================================================
 -- Row-Level Security
@@ -280,6 +297,7 @@ alter table pantry_items       enable row level security;
 alter table meal_plans         enable row level security;
 alter table meal_plan_entries  enable row level security;
 alter table food_logs          enable row level security;
+alter table locations          enable row level security;
 
 -- ---- families -------------------------------------------------------------
 -- Members can see their families; any authenticated user can create one.
@@ -403,6 +421,11 @@ create policy meal_plan_entries_all on meal_plan_entries
 create policy food_logs_all on food_logs
   for all using (user_id = auth.uid())
   with check (user_id = auth.uid());
+
+-- ---- locations ------------------------------------------------------------
+create policy locations_all on locations
+  for all using (is_family_member(family_id))
+  with check (is_family_member(family_id));
 
 -- =============================================================================
 -- Auto-create a profile row when a new auth user signs up.

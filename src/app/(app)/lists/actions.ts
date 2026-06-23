@@ -28,27 +28,27 @@ export async function addItem(formData: FormData) {
   // Optional link to a catalog item (when chosen from autocomplete).
   const ingredientId = String(formData.get("ingredient_id") || "") || null;
   let unit = String(formData.get("unit") || "").trim() || null;
-  let aisle: string | null = null;
   let notes: string | null = null;
   let imagePath: string | null = null;
+  let locationId: string | null = null;
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Pull the template's defaults so the list item inherits unit/aisle/notes/photo.
+  // Pull the template's defaults so the list item inherits unit/location/notes/photo.
   if (ingredientId) {
     const { data: ing } = await supabase
       .from("ingredients")
-      .select("default_unit, aisle, notes, image_path")
+      .select("default_unit, notes, image_path, location_id")
       .eq("id", ingredientId)
       .maybeSingle();
     if (ing) {
       unit = unit ?? ing.default_unit ?? null;
-      aisle = ing.aisle ?? null;
       notes = ing.notes ?? null;
       imagePath = ing.image_path ?? null;
+      locationId = ing.location_id ?? null;
     }
   }
 
@@ -59,9 +59,9 @@ export async function addItem(formData: FormData) {
     free_text: text,
     ingredient_id: ingredientId,
     unit,
-    aisle,
     notes,
     image_path: imagePath,
+    location_id: locationId,
     added_by: user?.id ?? null,
   });
 
@@ -116,7 +116,7 @@ export async function updateItemDetails(formData: FormData) {
       quantity: quantity != null && !Number.isNaN(quantity) ? quantity : null,
       unit: String(formData.get("unit") || "").trim() || null,
       notes: String(formData.get("notes") || "").trim() || null,
-      aisle: String(formData.get("aisle") || "").trim() || null,
+      location_id: String(formData.get("location_id") || "") || null,
     })
     .eq("id", id);
 

@@ -9,9 +9,11 @@ import { toggleItem } from "../actions";
 export default function ListItems({
   listId,
   initialItems,
+  locationLabels = {},
 }: {
   listId: string;
   initialItems: GroceryListItem[];
+  locationLabels?: Record<string, string>;
 }) {
   const [items, setItems] = useState(initialItems);
   const [, startTransition] = useTransition();
@@ -98,9 +100,9 @@ export default function ListItems({
                 }
               >
                 {label}
-                {item.aisle && (
+                {item.location_id && locationLabels[item.location_id] && (
                   <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
-                    {item.aisle}
+                    {locationLabels[item.location_id]}
                   </span>
                 )}
               </span>

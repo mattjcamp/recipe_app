@@ -5,7 +5,9 @@ import type {
   GroceryList,
   GroceryListItem,
   Ingredient,
+  Location,
 } from "@/lib/database.types";
+import { formatLocation } from "@/lib/location";
 import AddItem from "./[id]/AddItem";
 import ListItems from "./[id]/ListItems";
 
@@ -27,17 +29,24 @@ export default async function ListDetail({
 
   if (!list) notFound();
 
-  const [{ data: items }, { data: catalog }] = await Promise.all([
-    supabase
-      .from("grocery_list_items")
-      .select("*")
-      .eq("list_id", listId)
-      .order("created_at", { ascending: true }),
-    supabase
-      .from("ingredients")
-      .select("id, name, default_unit")
-      .order("name", { ascending: true }),
-  ]);
+  const [{ data: items }, { data: catalog }, { data: locData }] =
+    await Promise.all([
+      supabase
+        .from("grocery_list_items")
+        .select("*")
+        .eq("list_id", listId)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("ingredients")
+        .select("id, name, default_unit")
+        .order("name", { ascending: true }),
+      supabase.from("locations").select("*"),
+    ]);
+
+  const locationLabels: Record<string, string> = {};
+  for (const l of (locData as Location[]) ?? []) {
+    locationLabels[l.id] = formatLocation(l);
+  }
 
   return (
     <div>
@@ -72,6 +81,7 @@ export default async function ListDetail({
       <ListItems
         listId={listId}
         initialItems={(items as GroceryListItem[]) ?? []}
+        locationLabels={locationLabels}
       />
     </div>
   );

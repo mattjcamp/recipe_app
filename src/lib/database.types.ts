@@ -25,6 +25,16 @@ export interface FamilyMember {
   role: Role;
 }
 
+export interface Location {
+  id: string;
+  family_id: string;
+  store: string | null;
+  aisle: string | null;
+  aisle_num: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface FamilyInvite {
   id: string;
   family_id: string;
@@ -44,6 +54,7 @@ export interface Ingredient {
   aisle: string | null;
   notes: string | null;
   image_path: string | null;
+  location_id: string | null;
 }
 
 export interface Recipe {
@@ -94,6 +105,7 @@ export interface GroceryListItem {
   image_path: string | null;
   notes: string | null;
   aisle: string | null;
+  location_id: string | null;
   added_by: string | null;
   created_at: string;
   updated_at: string;

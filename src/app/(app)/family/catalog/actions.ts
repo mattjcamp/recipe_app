@@ -18,7 +18,7 @@ export async function updateIngredient(formData: FormData) {
       name,
       default_unit: String(formData.get("default_unit") || "").trim() || null,
       category: String(formData.get("category") || "").trim() || null,
-      aisle: String(formData.get("aisle") || "").trim() || null,
+      location_id: String(formData.get("location_id") || "") || null,
       notes: String(formData.get("notes") || "").trim() || null,
     })
     .eq("id", id);

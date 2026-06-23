@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { GroceryListItem } from "@/lib/database.types";
+import type { GroceryListItem, Location } from "@/lib/database.types";
 import { getCurrentFamily } from "@/lib/family";
 import { PHOTO_BUCKET, SIGNED_URL_TTL } from "@/lib/storage";
+import { formatLocation } from "@/lib/location";
 import { updateItemDetails } from "../../../actions";
 import ItemPhoto from "./ItemPhoto";
 import DeleteItem from "./DeleteItem";
@@ -34,6 +35,12 @@ export default async function ItemDetailPage({
       .createSignedUrl(it.image_path, SIGNED_URL_TTL);
     photoUrl = data?.signedUrl ?? null;
   }
+
+  const { data: locData } = await supabase
+    .from("locations")
+    .select("*")
+    .order("created_at", { ascending: true });
+  const locations = (locData as Location[]) ?? [];
 
   return (
     <div>
@@ -92,13 +99,24 @@ export default async function ItemDetailPage({
         </div>
 
         <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-slate-600">Aisle</span>
-          <input
-            name="aisle"
-            defaultValue={it.aisle ?? ""}
-            placeholder="e.g. Dairy, Aisle 5"
+          <span className="text-sm font-medium text-slate-600">Location</span>
+          <select
+            name="location_id"
+            defaultValue={it.location_id ?? ""}
             className="rounded-lg border border-slate-300 px-3 py-2"
-          />
+          >
+            <option value="">— None —</option>
+            {locations.map((l) => (
+              <option key={l.id} value={l.id}>
+                {formatLocation(l) || "(unnamed)"}
+              </option>
+            ))}
+          </select>
+          {locations.length === 0 && (
+            <span className="text-xs text-slate-400">
+              Add locations in Family → Locations.
+            </span>
+          )}
         </label>
 
         <label className="flex flex-col gap-1">

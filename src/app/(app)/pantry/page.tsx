@@ -30,25 +30,13 @@ export default async function PantryPage() {
     ]);
 
   const allItems = (items as GroceryListItem[]) ?? [];
-  const hasChecked = allItems.some((i) => i.is_checked);
 
   const locations: Record<string, Location> = {};
   for (const l of (locData as Location[]) ?? []) locations[l.id] = l;
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Pantry</h1>
-        {hasChecked && (
-          <form action={moveCheckedToGroceryList}>
-            <input type="hidden" name="pantry_id" value={pantry.id} />
-            <button className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700">
-              Move checked → list
-            </button>
-          </form>
-        )}
-      </div>
-
+      <h1 className="mb-1 text-xl font-semibold">Pantry</h1>
       <p className="mb-4 text-sm text-slate-500">
         What you have on hand. Check items you&apos;re running low on, then move
         them to your grocery list.
@@ -65,6 +53,11 @@ export default async function PantryPage() {
         listId={pantry.id}
         initialItems={allItems}
         locations={locations}
+        showStoreFilter={false}
+        moveAction={moveCheckedToGroceryList}
+        moveLabel="Move checked → grocery list"
+        moveParamName="pantry_id"
+        moveParamValue={pantry.id}
       />
     </div>
   );

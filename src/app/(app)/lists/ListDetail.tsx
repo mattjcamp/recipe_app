@@ -50,7 +50,6 @@ export default async function ListDetail({
 
   const groceryItems = (items as GroceryListItem[]) ?? [];
   const isGrocery = (list as GroceryList).kind === "grocery";
-  const hasChecked = groceryItems.some((i) => i.is_checked);
 
   return (
     <div>
@@ -86,16 +85,11 @@ export default async function ListDetail({
         listId={listId}
         initialItems={groceryItems}
         locations={locations}
+        moveAction={isGrocery ? moveCheckedToPantry : undefined}
+        moveLabel={isGrocery ? "Move checked items → Pantry" : undefined}
+        moveParamName="list_id"
+        moveParamValue={listId}
       />
-
-      {isGrocery && hasChecked && (
-        <form action={moveCheckedToPantry} className="mt-6">
-          <input type="hidden" name="list_id" value={listId} />
-          <button className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-            Move checked items → Pantry
-          </button>
-        </form>
-      )}
     </div>
   );
 }

@@ -16,10 +16,21 @@ export default function ListItems({
   listId,
   initialItems,
   locations = {},
+  showStoreFilter = true,
+  moveAction,
+  moveLabel,
+  moveParamName,
+  moveParamValue,
 }: {
   listId: string;
   initialItems: GroceryListItem[];
   locations?: Record<string, Location>;
+  showStoreFilter?: boolean;
+  // Optional "move checked items" button, rendered live when any item is checked.
+  moveAction?: (formData: FormData) => void | Promise<void>;
+  moveLabel?: string;
+  moveParamName?: string;
+  moveParamValue?: string;
 }) {
   const [items, setItems] = useState(initialItems);
   const [store, setStore] = useState(""); // "" = all stores
@@ -128,9 +139,11 @@ export default function ListItems({
     return <p className="text-sm text-slate-500">No items yet. Add one above.</p>;
   }
 
+  const anyChecked = items.some((i) => i.is_checked);
+
   return (
     <div>
-      {stores.length > 0 && (
+      {showStoreFilter && stores.length > 0 && (
         <div className="mb-4">
           <select
             value={store}
@@ -191,6 +204,17 @@ export default function ListItems({
           </section>
         ))}
       </div>
+
+      {moveAction && moveLabel && anyChecked && (
+        <form action={moveAction} className="mt-6">
+          {moveParamName && (
+            <input type="hidden" name={moveParamName} value={moveParamValue} />
+          )}
+          <button className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            {moveLabel}
+          </button>
+        </form>
+      )}
     </div>
   );
 }

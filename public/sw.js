@@ -1,6 +1,6 @@
 // Recipe App service worker — offline app shell + last-visited page caching.
 // Bump VERSION to force clients onto a fresh cache after a deploy.
-const VERSION = "v1";
+const VERSION = "v2";
 const STATIC_CACHE = `static-${VERSION}`;
 const PAGE_CACHE = `pages-${VERSION}`;
 const OFFLINE_URL = "/offline.html";

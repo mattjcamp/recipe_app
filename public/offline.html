@@ -17,20 +17,35 @@
         text-align: center;
         padding: 24px;
       }
-      .card { max-width: 22rem; }
-      h1 { font-size: 1.25rem; margin: 0 0 0.5rem; }
-      p { color: #64748b; font-size: 0.95rem; line-height: 1.5; }
+      .card { max-width: 22rem; width: 100%; }
       .dot { font-size: 2.5rem; }
+      h1 { font-size: 1.25rem; margin: 0.25rem 0 0.5rem; }
+      p { color: #64748b; font-size: 0.95rem; line-height: 1.5; margin: 0 0 1.25rem; }
+      .links { display: flex; flex-direction: column; gap: 0.5rem; }
+      a {
+        display: block;
+        text-decoration: none;
+        border-radius: 0.5rem;
+        padding: 0.7rem 1rem;
+        font-weight: 600;
+        font-size: 0.95rem;
+      }
+      .primary { background: #059669; color: #fff; }
+      .secondary { background: #fff; color: #0f172a; border: 1px solid #cbd5e1; }
+      .note { color: #94a3b8; font-size: 0.8rem; margin-top: 1rem; }
     </style>
   </head>
   <body>
     <div class="card">
       <div class="dot">📡</div>
       <h1>You're offline</h1>
-      <p>
-        Open a grocery list once while connected, and it'll be available here
-        even without signal. Reconnect to load the rest of the app.
-      </p>
+      <p>This part of the app needs a connection. Your grocery list and pantry
+        work offline though — jump back in:</p>
+      <div class="links">
+        <a class="primary" href="/lists">🛒 Grocery list</a>
+        <a class="secondary" href="/pantry">🥫 Pantry</a>
+      </div>
+      <p class="note">Recipes and Family need a connection.</p>
     </div>
   </body>
 </html>

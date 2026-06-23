@@ -7,8 +7,10 @@ import type { Ingredient } from "@/lib/database.types";
 
 export default function CatalogManager({
   initial,
+  familyId,
 }: {
   initial: Ingredient[];
+  familyId: string;
 }) {
   const supabase = createClient();
   const [items, setItems] = useState<Ingredient[]>(initial);
@@ -39,7 +41,7 @@ export default function CatalogManager({
     setError(null);
     const { data, error } = await supabase
       .from("ingredients")
-      .insert({ name: trimmed })
+      .insert({ name: trimmed, family_id: familyId })
       .select("*")
       .single();
     setAdding(false);

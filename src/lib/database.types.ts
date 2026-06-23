@@ -48,6 +48,7 @@ export interface FamilyInvite {
 
 export interface Ingredient {
   id: string;
+  family_id: string;
   name: string;
   default_unit: string | null;
   category: string | null;

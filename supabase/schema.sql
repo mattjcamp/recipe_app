@@ -114,18 +114,21 @@ create index on locations (family_id);
 -- Recipes
 -- =============================================================================
 
--- Canonical, shared ingredient catalog (global, not family-scoped).
+-- Per-family reusable item catalog.
 create table ingredients (
   id           uuid primary key default gen_random_uuid(),
-  name         text not null unique,
+  family_id    uuid not null references families(id) on delete cascade,
+  name         text not null,
   default_unit text,
   category     text,                       -- produce, dairy, pantry, ...
   aisle        text,                       -- (legacy free-text; superseded by location_id)
   notes        text,                       -- default notes
   image_path   text,                       -- default photo (recipe-photos bucket)
   location_id  uuid references locations(id) on delete set null,
-  created_at   timestamptz not null default now()
+  created_at   timestamptz not null default now(),
+  unique (family_id, name)
 );
+create index on ingredients (family_id);
 
 create table recipes (
   id           uuid primary key default gen_random_uuid(),
@@ -347,16 +350,10 @@ create policy invites_insert on family_invites
 create policy invites_delete on family_invites
   for delete using (is_family_owner(family_id));
 
--- ---- ingredients (shared global catalog) ----------------------------------
--- Everyone authenticated can read; any member can add to the catalog.
-create policy ingredients_select on ingredients
-  for select using (auth.uid() is not null);
-create policy ingredients_insert on ingredients
-  for insert with check (auth.uid() is not null);
-create policy ingredients_update on ingredients
-  for update using (auth.uid() is not null) with check (auth.uid() is not null);
-create policy ingredients_delete on ingredients
-  for delete using (auth.uid() is not null);
+-- ---- ingredients (per-family catalog) -------------------------------------
+create policy ingredients_all on ingredients
+  for all using (is_family_member(family_id))
+  with check (is_family_member(family_id));
 
 -- ---- recipes --------------------------------------------------------------
 create policy recipes_all on recipes

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { GroceryListItem, Location } from "@/lib/database.types";
-import { formatLocation } from "@/lib/location";
 import { toggleItem } from "../actions";
 
 function aisleSortKey(loc: Location | null): number {
@@ -149,9 +148,7 @@ export default function ListItems({
           <section key={g.loc?.id ?? "__none__"}>
             {showHeadings && (
               <h2 className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                {g.loc
-                  ? formatLocation(g.loc) || "Aisle"
-                  : "No aisle"}
+                {g.loc ? g.loc.aisle || "Aisle" : "No aisle"}
               </h2>
             )}
             <ul className="flex flex-col gap-2">

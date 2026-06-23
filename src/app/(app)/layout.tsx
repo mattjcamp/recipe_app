@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentFamily } from "@/lib/family";
-import { signOut } from "../login/actions";
 import OnlineBanner from "./OnlineBanner";
 
 // Layout for all signed-in, in-a-family pages. Provides the nav chrome and
@@ -17,20 +16,6 @@ export default async function AppLayout({
   return (
     <div className="mx-auto flex min-h-dvh max-w-2xl flex-col">
       <OnlineBanner />
-      <header className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Family
-          </p>
-          <p className="font-semibold">{family.name}</p>
-        </div>
-        <form action={signOut}>
-          <button className="text-sm text-slate-500 hover:text-slate-800">
-            Sign out
-          </button>
-        </form>
-      </header>
-
       <main className="flex-1 px-4 py-4">{children}</main>
 
       <nav className="sticky bottom-0 grid grid-cols-3 border-t border-slate-200 bg-white">

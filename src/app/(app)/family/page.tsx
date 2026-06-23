@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentFamily } from "@/lib/family";
 import type { FamilyMember, FamilyInvite, Profile } from "@/lib/database.types";
 import Link from "next/link";
+import { signOut } from "../../login/actions";
 import { createInvite, revokeInvite, removeMember } from "./actions";
 import CopyLink from "./CopyLink";
 
@@ -57,8 +58,17 @@ export default async function FamilyPage({
 
   return (
     <div>
-      <h1 className="mb-1 text-xl font-semibold">{family.name}</h1>
-      <p className="mb-6 text-sm text-slate-500">Manage members and invites.</p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">{family.name}</h1>
+          <p className="text-sm text-slate-500">Manage members and invites.</p>
+        </div>
+        <form action={signOut}>
+          <button className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
+            Sign out
+          </button>
+        </form>
+      </div>
 
       {error && (
         <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">

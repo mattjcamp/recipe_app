@@ -7,7 +7,6 @@ import type {
   Ingredient,
   Location,
 } from "@/lib/database.types";
-import { formatLocation } from "@/lib/location";
 import AddItem from "./[id]/AddItem";
 import ListItems from "./[id]/ListItems";
 
@@ -43,9 +42,9 @@ export default async function ListDetail({
       supabase.from("locations").select("*"),
     ]);
 
-  const locationLabels: Record<string, string> = {};
+  const locations: Record<string, Location> = {};
   for (const l of (locData as Location[]) ?? []) {
-    locationLabels[l.id] = formatLocation(l);
+    locations[l.id] = l;
   }
 
   return (
@@ -81,7 +80,7 @@ export default async function ListDetail({
       <ListItems
         listId={listId}
         initialItems={(items as GroceryListItem[]) ?? []}
-        locationLabels={locationLabels}
+        locations={locations}
       />
     </div>
   );

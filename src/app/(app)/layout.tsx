@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentFamily } from "@/lib/family";
 import { signOut } from "../login/actions";
+import OnlineBanner from "./OnlineBanner";
 
 // Layout for all signed-in, in-a-family pages. Provides the nav chrome and
 // enforces that the user has completed onboarding.
@@ -15,6 +16,7 @@ export default async function AppLayout({
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-2xl flex-col">
+      <OnlineBanner />
       <header className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
         <div>
           <p className="text-xs uppercase tracking-wide text-slate-400">

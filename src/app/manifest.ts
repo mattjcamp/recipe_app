@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Family Recipes",
     short_name: "Recipes",
     description: "Shared grocery lists, recipes, and meal plans for your family.",
-    start_url: "/",
+    start_url: "/lists",
     display: "standalone",
     background_color: "#f8fafc",
     theme_color: "#059669",

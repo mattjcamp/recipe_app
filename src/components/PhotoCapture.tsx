@@ -61,14 +61,12 @@ export default function PhotoCapture({
 
   return (
     <div>
-      <div className="mx-auto mb-2 flex aspect-[3/4] w-full max-w-xs items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-        {url ? (
-          // eslint-disable-next-line @next/next/no-img-element
+      {url && (
+        <div className="mx-auto mb-2 flex aspect-[3/4] w-full max-w-xs items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={url} alt="Item" className="h-full w-full object-contain" />
-        ) : (
-          <span className="text-sm text-slate-400">No photo yet</span>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="flex justify-center gap-2">
         <button

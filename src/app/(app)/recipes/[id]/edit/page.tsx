@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { Recipe, RecipeIngredient } from "@/lib/database.types";
+import type { Recipe, RecipeIngredient, Ingredient } from "@/lib/database.types";
 import RecipeForm from "@/components/RecipeForm";
+import type { RecipeIngredientRow } from "@/components/RecipeIngredientsEditor";
 import { updateRecipe } from "../../actions";
 
 export default async function EditRecipePage({
@@ -25,17 +26,26 @@ export default async function EditRecipePage({
   if (!recipe) notFound();
   const r = recipe as Recipe;
 
-  const { data: ingData } = await supabase
-    .from("recipe_ingredients")
-    .select("*")
-    .eq("recipe_id", id)
-    .order("sort_order", { ascending: true });
+  const [{ data: ingData }, { data: catalog }] = await Promise.all([
+    supabase
+      .from("recipe_ingredients")
+      .select("*")
+      .eq("recipe_id", id)
+      .order("sort_order", { ascending: true }),
+    supabase
+      .from("ingredients")
+      .select("id, name, default_unit")
+      .order("name", { ascending: true }),
+  ]);
 
-  const ingredientLines = ((ingData as RecipeIngredient[]) ?? [])
-    .map((ing) =>
-      [ing.quantity, ing.unit, ing.free_text].filter(Boolean).join(" "),
-    )
-    .join("\n");
+  const ingredientRows: RecipeIngredientRow[] = (
+    (ingData as RecipeIngredient[]) ?? []
+  ).map((ing) => ({
+    ingredient_id: ing.ingredient_id,
+    name: ing.free_text ?? "",
+    quantity: ing.quantity != null ? String(ing.quantity) : "",
+    unit: ing.unit ?? "",
+  }));
 
   return (
     <div>
@@ -55,13 +65,13 @@ export default async function EditRecipePage({
         <RecipeForm
           defaults={{
             title: r.title,
-            description: r.description ?? "",
-            servings: r.servings != null ? String(r.servings) : "",
-            prep_minutes: r.prep_minutes != null ? String(r.prep_minutes) : "",
-            cook_minutes: r.cook_minutes != null ? String(r.cook_minutes) : "",
-            ingredients: ingredientLines,
             instructions: (r.instructions ?? []).join("\n"),
           }}
+          ingredientRows={ingredientRows}
+          catalog={
+            (catalog as Pick<Ingredient, "id" | "name" | "default_unit">[]) ??
+            []
+          }
         />
         <button className="rounded-lg bg-emerald-600 px-3 py-2 font-medium text-white hover:bg-emerald-700">
           Save changes

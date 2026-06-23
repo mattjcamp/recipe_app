@@ -34,11 +34,6 @@ export default async function RecipesPage() {
                 className="block rounded-lg border border-slate-200 bg-white px-4 py-3 hover:border-emerald-300"
               >
                 <p className="font-medium">{r.title}</p>
-                {r.description && (
-                  <p className="line-clamp-2 text-sm text-slate-500">
-                    {r.description}
-                  </p>
-                )}
               </Link>
             </li>
           ))}

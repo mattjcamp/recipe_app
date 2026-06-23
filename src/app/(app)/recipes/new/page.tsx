@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
+import type { Ingredient } from "@/lib/database.types";
 import RecipeForm from "@/components/RecipeForm";
 import { createRecipe } from "../actions";
 
@@ -8,6 +10,11 @@ export default async function NewRecipePage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
+  const supabase = await createClient();
+  const { data: catalog } = await supabase
+    .from("ingredients")
+    .select("id, name, default_unit")
+    .order("name", { ascending: true });
 
   return (
     <div>
@@ -23,7 +30,13 @@ export default async function NewRecipePage({
       )}
 
       <form action={createRecipe} className="flex flex-col gap-3">
-        <RecipeForm />
+        <RecipeForm
+          ingredientRows={[]}
+          catalog={
+            (catalog as Pick<Ingredient, "id" | "name" | "default_unit">[]) ??
+            []
+          }
+        />
         <button className="rounded-lg bg-emerald-600 px-3 py-2 font-medium text-white hover:bg-emerald-700">
           Save recipe
         </button>

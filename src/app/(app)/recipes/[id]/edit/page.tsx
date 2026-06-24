@@ -66,6 +66,7 @@ export default async function EditRecipePage({
         <RecipeForm
           defaults={{
             title: r.title,
+            category: r.category ?? "",
             instructions: r.instructions ?? "",
             notes: r.description ?? "",
           }}

@@ -7,11 +7,17 @@ import RecipeIngredientsEditor, {
 // Renders inputs only; the parent supplies the <form>, hidden ids, and submit.
 export type RecipeFormDefaults = {
   title: string;
+  category: string;
   instructions: string; // one per line
   notes: string;
 };
 
-const EMPTY: RecipeFormDefaults = { title: "", instructions: "", notes: "" };
+const EMPTY: RecipeFormDefaults = {
+  title: "",
+  category: "",
+  instructions: "",
+  notes: "",
+};
 
 export default function RecipeForm({
   defaults = EMPTY,
@@ -29,6 +35,12 @@ export default function RecipeForm({
         required
         defaultValue={defaults.title}
         placeholder="Title"
+        className="rounded-lg border border-slate-300 px-3 py-2"
+      />
+      <input
+        name="category"
+        defaultValue={defaults.category}
+        placeholder="Category (e.g. Dinner, Dessert)"
         className="rounded-lg border border-slate-300 px-3 py-2"
       />
 

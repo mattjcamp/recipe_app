@@ -34,7 +34,11 @@ export default async function MealDetailPage({
       .select("id, recipe_id, recipes(title)")
       .eq("meal_id", id)
       .order("sort_order", { ascending: true }),
-    supabase.from("recipes").select("id, title").order("title"),
+    supabase
+      .from("recipes")
+      .select("id, title")
+      .order("category", { nullsFirst: false })
+      .order("title"),
   ]);
 
   const rows = ((mealRecipes as MealRecipeJoin[]) ?? []).map((mr) => {

@@ -137,6 +137,7 @@ create table recipes (
   created_by   uuid references auth.users(id) on delete set null,
   title        text not null,
   description  text,
+  category     text,
   servings     int,
   prep_minutes int,
   cook_minutes int,

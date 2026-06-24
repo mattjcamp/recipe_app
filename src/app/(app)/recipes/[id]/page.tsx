@@ -54,7 +54,11 @@ export default async function RecipeDetailPage({
           Edit
         </Link>
       </div>
-      <h1 className="mb-4 mt-1 text-2xl font-semibold">{r.title}</h1>
+      <h1 className="mb-1 mt-1 text-2xl font-semibold">{r.title}</h1>
+      {r.category && (
+        <p className="mb-4 text-sm text-slate-500">{r.category}</p>
+      )}
+      {!r.category && <div className="mb-4" />}
 
       {family && (
         <RecipePhoto

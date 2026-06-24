@@ -55,6 +55,7 @@ export async function createRecipe(formData: FormData) {
       family_id: family.familyId,
       created_by: user?.id ?? null,
       title,
+      category: String(formData.get("category") || "").trim() || null,
       instructions: steps,
       description: String(formData.get("notes") || "").trim() || null,
     })
@@ -89,6 +90,7 @@ export async function updateRecipe(formData: FormData) {
     .from("recipes")
     .update({
       title,
+      category: String(formData.get("category") || "").trim() || null,
       instructions: steps,
       description: String(formData.get("notes") || "").trim() || null,
     })

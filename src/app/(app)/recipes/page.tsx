@@ -24,6 +24,45 @@ export default async function RecipesPage() {
     }
   }
 
+  // Group by category; named categories alphabetical, "Uncategorized" last.
+  const groups = new Map<string, Recipe[]>();
+  for (const r of list) {
+    const key = r.category?.trim() || "";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(r);
+  }
+  const orderedKeys = [...groups.keys()].sort((a, b) => {
+    if (a === "") return 1;
+    if (b === "") return -1;
+    return a.localeCompare(b);
+  });
+
+  function card(r: Recipe) {
+    const thumb = r.image_url ? thumbs[r.image_url] : null;
+    return (
+      <li key={r.id}>
+        <Link
+          href={`/recipes/${r.id}`}
+          className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 hover:border-emerald-300"
+        >
+          {thumb ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={thumb}
+              alt=""
+              className="h-14 w-14 shrink-0 rounded-lg object-cover"
+            />
+          ) : (
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xl">
+              📖
+            </div>
+          )}
+          <p className="font-medium">{r.title}</p>
+        </Link>
+      </li>
+    );
+  }
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
@@ -41,33 +80,18 @@ export default async function RecipesPage() {
           No recipes yet. Add your family favourites.
         </p>
       ) : (
-        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {list.map((r) => {
-            const thumb = r.image_url ? thumbs[r.image_url] : null;
-            return (
-              <li key={r.id}>
-                <Link
-                  href={`/recipes/${r.id}`}
-                  className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 hover:border-emerald-300"
-                >
-                  {thumb ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={thumb}
-                      alt=""
-                      className="h-14 w-14 shrink-0 rounded-lg object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xl">
-                      📖
-                    </div>
-                  )}
-                  <p className="font-medium">{r.title}</p>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="flex flex-col gap-5">
+          {orderedKeys.map((key) => (
+            <section key={key || "uncategorized"}>
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                {key || "Uncategorized"}
+              </h2>
+              <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {groups.get(key)!.map((r) => card(r))}
+              </ul>
+            </section>
+          ))}
+        </div>
       )}
     </div>
   );

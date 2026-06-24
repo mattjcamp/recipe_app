@@ -91,6 +91,7 @@ export interface Recipe {
   created_by: string | null;
   title: string;
   description: string | null;
+  category: string | null;
   servings: number | null;
   prep_minutes: number | null;
   cook_minutes: number | null;

@@ -19,7 +19,11 @@ export default async function PlanPage({
   const [{ data: meals }, { data: recipes }, { data: mealRecipes }] =
     await Promise.all([
       supabase.from("meals").select("id, name").order("name"),
-      supabase.from("recipes").select("id, title, image_url").order("title"),
+      supabase
+        .from("recipes")
+        .select("id, title, image_url")
+        .order("category", { nullsFirst: false })
+        .order("title"),
       supabase.from("meal_recipes").select("meal_id, recipe_id"),
     ]);
 

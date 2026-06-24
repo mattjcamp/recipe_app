@@ -92,9 +92,16 @@ export default async function FamilyPage({
       </Link>
       <Link
         href="/family/locations"
-        className="mb-6 flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 hover:border-emerald-300"
+        className="mb-2 flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 hover:border-emerald-300"
       >
         <span className="font-medium">📍 Locations</span>
+        <span className="text-slate-300">›</span>
+      </Link>
+      <Link
+        href="/family/meals"
+        className="mb-6 flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 hover:border-emerald-300"
+      >
+        <span className="font-medium">🍽️ Meals</span>
         <span className="text-slate-300">›</span>
       </Link>
 

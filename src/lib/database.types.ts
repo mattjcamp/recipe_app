@@ -25,6 +25,22 @@ export interface FamilyMember {
   role: Role;
 }
 
+export interface Meal {
+  id: string;
+  family_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MealRecipe {
+  id: string;
+  meal_id: string;
+  recipe_id: string;
+  sort_order: number;
+  created_at: string;
+}
+
 export interface Location {
   id: string;
   family_id: string;

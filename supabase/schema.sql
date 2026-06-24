@@ -239,6 +239,29 @@ create table meal_plan_entries (
 );
 
 -- =============================================================================
+-- Meals — a named collection of recipes (later scheduled on a weekly plan)
+-- =============================================================================
+create table meals (
+  id         uuid primary key default gen_random_uuid(),
+  family_id  uuid not null references families(id) on delete cascade,
+  name       text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index on meals (family_id);
+
+create table meal_recipes (
+  id         uuid primary key default gen_random_uuid(),
+  meal_id    uuid not null references meals(id) on delete cascade,
+  recipe_id  uuid not null references recipes(id) on delete cascade,
+  sort_order int not null default 0,
+  created_at timestamptz not null default now(),
+  unique (meal_id, recipe_id)
+);
+create index on meal_recipes (meal_id);
+create index on meal_recipes (recipe_id);
+
+-- =============================================================================
 -- Macro tracking (Phase 3 — personal, user-scoped not family-scoped)
 -- =============================================================================
 
@@ -285,6 +308,7 @@ create trigger trg_grocery_items_updated  before update on grocery_list_items  f
 create trigger trg_pantry_updated         before update on pantry_items        for each row execute function set_updated_at();
 create trigger trg_meal_plans_updated     before update on meal_plans          for each row execute function set_updated_at();
 create trigger trg_locations_updated      before update on locations           for each row execute function set_updated_at();
+create trigger trg_meals_updated          before update on meals               for each row execute function set_updated_at();
 
 -- =============================================================================
 -- Row-Level Security
@@ -305,6 +329,8 @@ alter table meal_plans         enable row level security;
 alter table meal_plan_entries  enable row level security;
 alter table food_logs          enable row level security;
 alter table locations          enable row level security;
+alter table meals              enable row level security;
+alter table meal_recipes       enable row level security;
 
 -- ---- families -------------------------------------------------------------
 -- Members can see their families; any authenticated user can create one.
@@ -427,6 +453,21 @@ create policy food_logs_all on food_logs
 create policy locations_all on locations
   for all using (is_family_member(family_id))
   with check (is_family_member(family_id));
+
+-- ---- meals ----------------------------------------------------------------
+create policy meals_all on meals
+  for all using (is_family_member(family_id))
+  with check (is_family_member(family_id));
+
+create policy meal_recipes_all on meal_recipes
+  for all using (
+    exists (select 1 from meals m
+            where m.id = meal_recipes.meal_id and is_family_member(m.family_id))
+  )
+  with check (
+    exists (select 1 from meals m
+            where m.id = meal_recipes.meal_id and is_family_member(m.family_id))
+  );
 
 -- =============================================================================
 -- Auto-create a profile row when a new auth user signs up.

@@ -16,16 +16,34 @@ export default async function PlanPage({
   if (!family) redirect("/onboarding");
 
   const supabase = await createClient();
-  const [{ data: meals }, { data: recipes }, { data: mealRecipes }] =
-    await Promise.all([
-      supabase.from("meals").select("id, name").order("name"),
-      supabase
-        .from("recipes")
-        .select("id, title, image_url, category")
-        .order("category", { nullsFirst: false })
-        .order("title"),
-      supabase.from("meal_recipes").select("meal_id, recipe_id"),
-    ]);
+  const [
+    { data: meals },
+    { data: recipes },
+    { data: mealRecipes },
+    { data: recIngs },
+  ] = await Promise.all([
+    supabase.from("meals").select("id, name").order("name"),
+    supabase
+      .from("recipes")
+      .select("id, title, image_url, category")
+      .order("category", { nullsFirst: false })
+      .order("title"),
+    supabase.from("meal_recipes").select("meal_id, recipe_id"),
+    supabase
+      .from("recipe_ingredients")
+      .select("recipe_id, free_text")
+      .eq("is_heading", false),
+  ]);
+
+  // recipe id -> its ingredient names (for searching the picker)
+  const ingredientsByRecipe = new Map<string, string[]>();
+  for (const ri of (recIngs as { recipe_id: string; free_text: string | null }[]) ??
+    []) {
+    if (!ri.free_text) continue;
+    const arr = ingredientsByRecipe.get(ri.recipe_id) ?? [];
+    arr.push(ri.free_text);
+    ingredientsByRecipe.set(ri.recipe_id, arr);
+  }
 
   // Sign recipe image paths for thumbnails (keyed by recipe id).
   const recipeRows =
@@ -80,6 +98,9 @@ export default async function PlanPage({
           id: r.id,
           name: r.title,
           category: r.category,
+          search: [r.title, ...(ingredientsByRecipe.get(r.id) ?? [])]
+            .join(" ")
+            .toLowerCase(),
         }))}
         mealRecipes={
           (mealRecipes as { meal_id: string; recipe_id: string }[]) ?? []

@@ -13,7 +13,8 @@ type Entry = {
   label: string;
 };
 type Option = { id: string; name: string };
-type RecipeOption = Option & { category: string | null };
+// `search` includes the title + ingredient names (lowercased) for filtering.
+type RecipeOption = Option & { category: string | null; search: string };
 
 const DAYS = [
   "Sunday",
@@ -277,7 +278,8 @@ function DayAdder({
   const [open, setOpen] = useState(false);
   const ql = q.trim().toLowerCase();
   const mm = meals.filter((m) => m.name.toLowerCase().includes(ql));
-  const rr = recipes.filter((r) => r.name.toLowerCase().includes(ql));
+  // Match recipe title OR any of its ingredient names.
+  const rr = recipes.filter((r) => r.search.includes(ql));
 
   // Group matching recipes by category (Uncategorized last).
   const recipeGroups = new Map<string, RecipeOption[]>();

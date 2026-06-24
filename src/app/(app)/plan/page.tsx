@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentFamily } from "@/lib/family";
 import type { Meal, Recipe } from "@/lib/database.types";
+import { PHOTO_BUCKET, SIGNED_URL_TTL } from "@/lib/storage";
 import PlanWeek from "./PlanWeek";
 import { addPlanToGroceryList } from "./actions";
 
@@ -18,9 +19,26 @@ export default async function PlanPage({
   const [{ data: meals }, { data: recipes }, { data: mealRecipes }] =
     await Promise.all([
       supabase.from("meals").select("id, name").order("name"),
-      supabase.from("recipes").select("id, title").order("title"),
+      supabase.from("recipes").select("id, title, image_url").order("title"),
       supabase.from("meal_recipes").select("meal_id, recipe_id"),
     ]);
+
+  // Sign recipe image paths for thumbnails (keyed by recipe id).
+  const recipeRows =
+    (recipes as Pick<Recipe, "id" | "title" | "image_url">[]) ?? [];
+  const paths = recipeRows.map((r) => r.image_url).filter(Boolean) as string[];
+  const recipeThumbs: Record<string, string> = {};
+  if (paths.length > 0) {
+    const { data: signed } = await supabase.storage
+      .from(PHOTO_BUCKET)
+      .createSignedUrls(paths, SIGNED_URL_TTL);
+    const byPath: Record<string, string> = {};
+    for (const s of signed ?? [])
+      if (s.signedUrl && s.path) byPath[s.path] = s.signedUrl;
+    for (const r of recipeRows)
+      if (r.image_url && byPath[r.image_url])
+        recipeThumbs[r.id] = byPath[r.image_url];
+  }
 
   return (
     <div>
@@ -53,12 +71,11 @@ export default async function PlanPage({
       <PlanWeek
         familyId={family.familyId}
         meals={(meals as Pick<Meal, "id" | "name">[]) ?? []}
-        recipes={((recipes as Pick<Recipe, "id" | "title">[]) ?? []).map(
-          (r) => ({ id: r.id, name: r.title }),
-        )}
+        recipes={recipeRows.map((r) => ({ id: r.id, name: r.title }))}
         mealRecipes={
           (mealRecipes as { meal_id: string; recipe_id: string }[]) ?? []
         }
+        recipeThumbs={recipeThumbs}
       />
     </div>
   );

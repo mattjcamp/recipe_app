@@ -29,11 +29,13 @@ export default function PlanWeek({
   meals,
   recipes,
   mealRecipes,
+  recipeThumbs = {},
 }: {
   familyId: string;
   meals: Option[];
   recipes: Option[];
   mealRecipes: { meal_id: string; recipe_id: string }[];
+  recipeThumbs?: Record<string, string>;
 }) {
   const supabase = createClient();
 
@@ -192,6 +194,18 @@ export default function PlanWeek({
                       key={e.id}
                       className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-3"
                     >
+                      {e.kind === "recipe" && recipeThumbs[e.refId] ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={recipeThumbs[e.refId]}
+                          alt=""
+                          className="h-10 w-10 shrink-0 rounded object-cover"
+                        />
+                      ) : (
+                        <span className="text-lg">
+                          {e.kind === "meal" ? "🍽️" : "📖"}
+                        </span>
+                      )}
                       <Link
                         href={
                           e.kind === "meal"
@@ -200,7 +214,7 @@ export default function PlanWeek({
                         }
                         className="flex-1 truncate font-medium hover:underline"
                       >
-                        {e.kind === "meal" ? "🍽️" : "📖"} {e.label}
+                        {e.label}
                       </Link>
                       <button
                         onClick={() => reorder(e.id, -1)}

@@ -152,7 +152,7 @@ create table recipe_ingredients (
   recipe_id     uuid not null references recipes(id) on delete cascade,
   ingredient_id uuid references ingredients(id) on delete set null,
   free_text     text,                      -- fallback if not in catalog
-  quantity      numeric,
+  quantity      text,                      -- free text so fractions work ("1/4")
   unit          text,
   note          text,
   sort_order    int not null default 0

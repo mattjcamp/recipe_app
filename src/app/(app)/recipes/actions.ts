@@ -22,17 +22,14 @@ function parseIngredientRows(formData: FormData, recipeId: string) {
   }
   return rows
     .filter((row) => row && row.name?.trim())
-    .map((row, i) => {
-      const qty = Number(String(row.quantity ?? "").trim());
-      return {
-        recipe_id: recipeId,
-        ingredient_id: row.ingredient_id || null,
-        free_text: row.name.trim(),
-        quantity: row.quantity?.trim() && !Number.isNaN(qty) ? qty : null,
-        unit: row.unit?.trim() || null,
-        sort_order: i,
-      };
-    });
+    .map((row, i) => ({
+      recipe_id: recipeId,
+      ingredient_id: row.ingredient_id || null,
+      free_text: row.name.trim(),
+      quantity: row.quantity?.trim() || null, // free text, supports fractions
+      unit: row.unit?.trim() || null,
+      sort_order: i,
+    }));
 }
 
 export async function createRecipe(formData: FormData) {

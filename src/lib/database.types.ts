@@ -106,7 +106,7 @@ export interface RecipeIngredient {
   recipe_id: string;
   ingredient_id: string | null;
   free_text: string | null;
-  quantity: number | null;
+  quantity: string | null; // free text to allow fractions like "1/4"
   unit: string | null;
   note: string | null;
   sort_order: number;

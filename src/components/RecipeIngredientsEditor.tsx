@@ -50,6 +50,15 @@ export default function RecipeIngredientsEditor({
   function remove(i: number) {
     setRows((r) => r.filter((_, idx) => idx !== i));
   }
+  function move(i: number, dir: -1 | 1) {
+    setRows((r) => {
+      const j = i + dir;
+      if (j < 0 || j >= r.length) return r;
+      const copy = [...r];
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+      return copy;
+    });
+  }
 
   return (
     <div>
@@ -105,20 +114,37 @@ export default function RecipeIngredientsEditor({
               key={i}
               className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-2"
             >
-              <span className="flex-1 text-sm">{row.name}</span>
+              <span className="flex-1 truncate text-sm">{row.name}</span>
               <input
                 value={row.quantity}
                 onChange={(e) => update(i, { quantity: e.target.value })}
-                inputMode="decimal"
                 placeholder="Qty"
-                className="w-16 rounded border border-slate-300 px-2 py-1 text-sm"
+                className="w-14 rounded border border-slate-300 px-2 py-1 text-sm"
               />
               <input
                 value={row.unit}
                 onChange={(e) => update(i, { unit: e.target.value })}
                 placeholder="unit"
-                className="w-20 rounded border border-slate-300 px-2 py-1 text-sm"
+                className="w-16 rounded border border-slate-300 px-2 py-1 text-sm"
               />
+              <button
+                type="button"
+                onClick={() => move(i, -1)}
+                disabled={i === 0}
+                className="px-1 text-slate-400 disabled:opacity-30"
+                aria-label="Move up"
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                onClick={() => move(i, 1)}
+                disabled={i === rows.length - 1}
+                className="px-1 text-slate-400 disabled:opacity-30"
+                aria-label="Move down"
+              >
+                ↓
+              </button>
               <button
                 type="button"
                 onClick={() => remove(i)}

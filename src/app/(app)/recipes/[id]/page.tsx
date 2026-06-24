@@ -6,6 +6,7 @@ import { getCurrentFamily } from "@/lib/family";
 import { PHOTO_BUCKET, SIGNED_URL_TTL } from "@/lib/storage";
 import SimpleMarkdown from "@/components/SimpleMarkdown";
 import RecipePhoto from "./RecipePhoto";
+import RecipeIngredients from "./RecipeIngredients";
 
 export default async function RecipeDetailPage({
   params,
@@ -73,29 +74,7 @@ export default async function RecipeDetailPage({
         {ings.length === 0 ? (
           <p className="text-sm text-slate-500">No ingredients listed.</p>
         ) : (
-          <div className="flex flex-col gap-1 text-slate-700">
-            {ings.map((ing) => {
-              if (ing.is_heading) {
-                return (
-                  <h3
-                    key={ing.id}
-                    className="mt-3 text-sm font-semibold uppercase tracking-wide text-slate-500 first:mt-0"
-                  >
-                    {ing.free_text}
-                  </h3>
-                );
-              }
-              const measure = [ing.quantity, ing.unit]
-                .filter(Boolean)
-                .join(" ");
-              return (
-                <div key={ing.id} className="pl-1">
-                  • {ing.free_text}
-                  {measure && `, ${measure}`}
-                </div>
-              );
-            })}
-          </div>
+          <RecipeIngredients ings={ings} />
         )}
       </section>
 

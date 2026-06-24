@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Location } from "@/lib/database.types";
-import { formatLocation } from "@/lib/location";
+import { formatLocation, compareLocations } from "@/lib/location";
 
 export default function LocationManager({
   initial,
@@ -122,7 +122,7 @@ export default function LocationManager({
         <p className="text-sm text-slate-500">No locations yet.</p>
       ) : (
         <ul className="flex flex-col gap-2">
-          {locs.map((l) =>
+          {[...locs].sort(compareLocations).map((l) =>
             editId === l.id ? (
               <li
                 key={l.id}

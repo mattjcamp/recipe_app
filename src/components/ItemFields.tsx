@@ -1,5 +1,5 @@
 import type { Location } from "@/lib/database.types";
-import { formatLocation } from "@/lib/location";
+import { formatLocation, compareLocations } from "@/lib/location";
 
 // Shared item form fields used by both the grocery item detail screen and the
 // catalog item detail screen. Renders inputs only — the parent supplies the
@@ -65,7 +65,7 @@ export default function ItemFields({
           className="rounded-lg border border-slate-300 px-3 py-2"
         >
           <option value="">— None —</option>
-          {locations.map((l) => (
+          {[...locations].sort(compareLocations).map((l) => (
             <option key={l.id} value={l.id}>
               {formatLocation(l) || "(unnamed)"}
             </option>

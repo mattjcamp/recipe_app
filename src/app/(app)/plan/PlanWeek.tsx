@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -183,9 +184,16 @@ export default function PlanWeek({
                       key={e.id}
                       className="flex items-center gap-1.5 rounded border border-slate-100 bg-slate-50 px-2 py-1.5"
                     >
-                      <span className="flex-1 truncate text-sm">
+                      <Link
+                        href={
+                          e.kind === "meal"
+                            ? `/family/meals/${e.refId}`
+                            : `/recipes/${e.refId}`
+                        }
+                        className="flex-1 truncate text-sm hover:underline"
+                      >
                         {e.kind === "meal" ? "🍽️" : "📖"} {e.label}
-                      </span>
+                      </Link>
                       <button
                         onClick={() => reorder(e.id, -1)}
                         disabled={i === 0}

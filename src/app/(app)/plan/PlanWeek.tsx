@@ -28,12 +28,22 @@ export default function PlanWeek({
   familyId,
   meals,
   recipes,
+  mealRecipes,
 }: {
   familyId: string;
   meals: Option[];
   recipes: Option[];
+  mealRecipes: { meal_id: string; recipe_id: string }[];
 }) {
   const supabase = createClient();
+
+  // meal id -> its recipe ids (adding a meal expands into these recipes)
+  const recipesByMeal = new Map<string, string[]>();
+  for (const mr of mealRecipes) {
+    const arr = recipesByMeal.get(mr.meal_id) ?? [];
+    arr.push(mr.recipe_id);
+    recipesByMeal.set(mr.meal_id, arr);
+  }
   const [entries, setEntries] = useState<Entry[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,24 +89,36 @@ export default function PlanWeek({
   async function addEntry(dow: number, value: string) {
     if (!value) return;
     const [kind, refId] = value.split(":") as ["meal" | "recipe", string];
-    const order = dayEntries(dow).length;
+    // Adding a meal expands into the recipes that make it up.
+    const recipeIds =
+      kind === "recipe" ? [refId] : recipesByMeal.get(refId) ?? [];
+    if (recipeIds.length === 0) return;
+
+    const base = dayEntries(dow).length;
+    const rows = recipeIds.map((rid, i) => ({
+      family_id: familyId,
+      day_of_week: dow,
+      meal_id: null,
+      recipe_id: rid,
+      sort_order: base + i,
+    }));
+
     setError(null);
     const { data, error } = await supabase
       .from("meal_plan_entries")
-      .insert({
-        family_id: familyId,
-        day_of_week: dow,
-        meal_id: kind === "meal" ? refId : null,
-        recipe_id: kind === "recipe" ? refId : null,
-        sort_order: order,
-      })
-      .select("id")
-      .single();
+      .insert(rows)
+      .select("id, recipe_id, sort_order");
     if (error) return setError(error.message);
-    setEntries((e) => [
-      ...e,
-      { id: data!.id, day_of_week: dow, sort_order: order, kind, refId, label: labelFor(kind, refId) },
-    ]);
+
+    const added: Entry[] = (data ?? []).map((d) => ({
+      id: d.id,
+      day_of_week: dow,
+      sort_order: d.sort_order,
+      kind: "recipe",
+      refId: d.recipe_id as string,
+      label: labelFor("recipe", d.recipe_id as string),
+    }));
+    setEntries((e) => [...e, ...added]);
   }
 
   async function removeEntry(id: string) {
@@ -164,11 +186,11 @@ export default function PlanWeek({
               <h2 className="mb-2 text-sm font-semibold">{name}</h2>
 
               {list.length > 0 && (
-                <ul className="mb-2 flex flex-col gap-1">
+                <ul className="mb-2 flex flex-col gap-2">
                   {list.map((e, i) => (
                     <li
                       key={e.id}
-                      className="flex items-center gap-1.5 rounded border border-slate-100 bg-slate-50 px-2 py-1.5"
+                      className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-3"
                     >
                       <Link
                         href={
@@ -176,7 +198,7 @@ export default function PlanWeek({
                             ? `/family/meals/${e.refId}`
                             : `/recipes/${e.refId}`
                         }
-                        className="flex-1 truncate text-sm hover:underline"
+                        className="flex-1 truncate font-medium hover:underline"
                       >
                         {e.kind === "meal" ? "🍽️" : "📖"} {e.label}
                       </Link>

@@ -9,10 +9,12 @@ export default async function PlanPage() {
   if (!family) redirect("/onboarding");
 
   const supabase = await createClient();
-  const [{ data: meals }, { data: recipes }] = await Promise.all([
-    supabase.from("meals").select("id, name").order("name"),
-    supabase.from("recipes").select("id, title").order("title"),
-  ]);
+  const [{ data: meals }, { data: recipes }, { data: mealRecipes }] =
+    await Promise.all([
+      supabase.from("meals").select("id, name").order("name"),
+      supabase.from("recipes").select("id, title").order("title"),
+      supabase.from("meal_recipes").select("meal_id, recipe_id"),
+    ]);
 
   return (
     <div>
@@ -23,6 +25,9 @@ export default async function PlanPage() {
         recipes={((recipes as Pick<Recipe, "id" | "title">[]) ?? []).map(
           (r) => ({ id: r.id, name: r.title }),
         )}
+        mealRecipes={
+          (mealRecipes as { meal_id: string; recipe_id: string }[]) ?? []
+        }
       />
     </div>
   );

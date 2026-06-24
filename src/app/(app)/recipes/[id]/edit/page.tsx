@@ -66,6 +66,7 @@ export default async function EditRecipePage({
           defaults={{
             title: r.title,
             instructions: (r.instructions ?? []).join("\n"),
+            notes: r.description ?? "",
           }}
           ingredientRows={ingredientRows}
           catalog={

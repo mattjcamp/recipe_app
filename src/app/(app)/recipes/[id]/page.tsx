@@ -84,7 +84,7 @@ export default async function RecipeDetailPage({
         )}
       </section>
 
-      <section>
+      <section className="mb-6">
         <h2 className="mb-2 font-semibold">Steps</h2>
         {r.instructions.length === 0 ? (
           <p className="text-sm text-slate-500">No steps listed.</p>
@@ -96,6 +96,13 @@ export default async function RecipeDetailPage({
           </ol>
         )}
       </section>
+
+      {r.description && (
+        <section>
+          <h2 className="mb-2 font-semibold">Notes</h2>
+          <p className="whitespace-pre-wrap text-slate-700">{r.description}</p>
+        </section>
+      )}
     </div>
   );
 }

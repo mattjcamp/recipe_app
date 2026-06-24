@@ -56,41 +56,7 @@ export default function RecipeIngredientsEditor({
       <input type="hidden" name="ingredients_json" value={JSON.stringify(rows)} />
       <span className="text-sm font-medium text-slate-600">Ingredients</span>
 
-      {rows.length > 0 && (
-        <ul className="mb-2 mt-1 flex flex-col gap-2">
-          {rows.map((row, i) => (
-            <li
-              key={i}
-              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-2"
-            >
-              <span className="flex-1 text-sm">{row.name}</span>
-              <input
-                value={row.quantity}
-                onChange={(e) => update(i, { quantity: e.target.value })}
-                inputMode="decimal"
-                placeholder="Qty"
-                className="w-16 rounded border border-slate-300 px-2 py-1 text-sm"
-              />
-              <input
-                value={row.unit}
-                onChange={(e) => update(i, { unit: e.target.value })}
-                placeholder="unit"
-                className="w-20 rounded border border-slate-300 px-2 py-1 text-sm"
-              />
-              <button
-                type="button"
-                onClick={() => remove(i)}
-                className="px-1 text-slate-400 hover:text-red-600"
-                aria-label="Remove ingredient"
-              >
-                ✕
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="relative mt-1">
+      <div className="relative mb-2 mt-1">
         <input
           ref={inputRef}
           value={text}
@@ -131,6 +97,40 @@ export default function RecipeIngredientsEditor({
           </ul>
         )}
       </div>
+
+      {rows.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {rows.map((row, i) => (
+            <li
+              key={i}
+              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-2"
+            >
+              <span className="flex-1 text-sm">{row.name}</span>
+              <input
+                value={row.quantity}
+                onChange={(e) => update(i, { quantity: e.target.value })}
+                inputMode="decimal"
+                placeholder="Qty"
+                className="w-16 rounded border border-slate-300 px-2 py-1 text-sm"
+              />
+              <input
+                value={row.unit}
+                onChange={(e) => update(i, { unit: e.target.value })}
+                placeholder="unit"
+                className="w-20 rounded border border-slate-300 px-2 py-1 text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => remove(i)}
+                className="px-1 text-slate-400 hover:text-red-600"
+                aria-label="Remove ingredient"
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

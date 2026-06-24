@@ -8,9 +8,10 @@ import RecipeIngredientsEditor, {
 export type RecipeFormDefaults = {
   title: string;
   instructions: string; // one per line
+  notes: string;
 };
 
-const EMPTY: RecipeFormDefaults = { title: "", instructions: "" };
+const EMPTY: RecipeFormDefaults = { title: "", instructions: "", notes: "" };
 
 export default function RecipeForm({
   defaults = EMPTY,
@@ -41,6 +42,15 @@ export default function RecipeForm({
         rows={6}
         defaultValue={defaults.instructions}
         placeholder={"Preheat oven to 180C\nMix dry ingredients\n..."}
+        className="rounded-lg border border-slate-300 px-3 py-2"
+      />
+
+      <label className="text-sm font-medium text-slate-600">Notes</label>
+      <textarea
+        name="notes"
+        rows={3}
+        defaultValue={defaults.notes}
+        placeholder="Serving ideas, substitutions, source…"
         className="rounded-lg border border-slate-300 px-3 py-2"
       />
     </>

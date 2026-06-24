@@ -60,6 +60,7 @@ export async function createRecipe(formData: FormData) {
       created_by: user?.id ?? null,
       title,
       instructions: steps,
+      description: String(formData.get("notes") || "").trim() || null,
     })
     .select("id")
     .single();
@@ -93,7 +94,11 @@ export async function updateRecipe(formData: FormData) {
 
   const { error } = await supabase
     .from("recipes")
-    .update({ title, instructions: steps })
+    .update({
+      title,
+      instructions: steps,
+      description: String(formData.get("notes") || "").trim() || null,
+    })
     .eq("id", id);
 
   if (error) {

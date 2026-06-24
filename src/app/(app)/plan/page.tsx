@@ -21,7 +21,7 @@ export default async function PlanPage({
       supabase.from("meals").select("id, name").order("name"),
       supabase
         .from("recipes")
-        .select("id, title, image_url")
+        .select("id, title, image_url, category")
         .order("category", { nullsFirst: false })
         .order("title"),
       supabase.from("meal_recipes").select("meal_id, recipe_id"),
@@ -29,7 +29,8 @@ export default async function PlanPage({
 
   // Sign recipe image paths for thumbnails (keyed by recipe id).
   const recipeRows =
-    (recipes as Pick<Recipe, "id" | "title" | "image_url">[]) ?? [];
+    (recipes as Pick<Recipe, "id" | "title" | "image_url" | "category">[]) ??
+    [];
   const paths = recipeRows.map((r) => r.image_url).filter(Boolean) as string[];
   const recipeThumbs: Record<string, string> = {};
   if (paths.length > 0) {
@@ -75,7 +76,11 @@ export default async function PlanPage({
       <PlanWeek
         familyId={family.familyId}
         meals={(meals as Pick<Meal, "id" | "name">[]) ?? []}
-        recipes={recipeRows.map((r) => ({ id: r.id, name: r.title }))}
+        recipes={recipeRows.map((r) => ({
+          id: r.id,
+          name: r.title,
+          category: r.category,
+        }))}
         mealRecipes={
           (mealRecipes as { meal_id: string; recipe_id: string }[]) ?? []
         }

@@ -13,6 +13,7 @@ type Entry = {
   label: string;
 };
 type Option = { id: string; name: string };
+type RecipeOption = Option & { category: string | null };
 
 const DAYS = [
   "Sunday",
@@ -33,7 +34,7 @@ export default function PlanWeek({
 }: {
   familyId: string;
   meals: Option[];
-  recipes: Option[];
+  recipes: RecipeOption[];
   mealRecipes: { meal_id: string; recipe_id: string }[];
   recipeThumbs?: Record<string, string>;
 }) {
@@ -269,7 +270,7 @@ function DayAdder({
 }: {
   dayName: string;
   meals: Option[];
-  recipes: Option[];
+  recipes: RecipeOption[];
   onAdd: (value: string) => void;
 }) {
   const [q, setQ] = useState("");
@@ -277,6 +278,19 @@ function DayAdder({
   const ql = q.trim().toLowerCase();
   const mm = meals.filter((m) => m.name.toLowerCase().includes(ql));
   const rr = recipes.filter((r) => r.name.toLowerCase().includes(ql));
+
+  // Group matching recipes by category (Uncategorized last).
+  const recipeGroups = new Map<string, RecipeOption[]>();
+  for (const r of rr) {
+    const key = r.category?.trim() || "";
+    if (!recipeGroups.has(key)) recipeGroups.set(key, []);
+    recipeGroups.get(key)!.push(r);
+  }
+  const recipeCats = [...recipeGroups.keys()].sort((a, b) => {
+    if (a === "") return 1;
+    if (b === "") return -1;
+    return a.localeCompare(b);
+  });
 
   function pick(value: string) {
     onAdd(value);
@@ -317,21 +331,25 @@ function DayAdder({
               </button>
             </li>
           ))}
-          {rr.length > 0 && (
-            <li className="px-3 pt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Recipes
-            </li>
-          )}
-          {rr.map((r) => (
-            <li key={`r-${r.id}`}>
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => pick(`recipe:${r.id}`)}
-                className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
-              >
-                📖 {r.name}
-              </button>
+          {recipeCats.map((cat) => (
+            <li key={`cat-${cat || "uncat"}`}>
+              <p className="px-3 pt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                {cat || "Uncategorized"}
+              </p>
+              <ul>
+                {recipeGroups.get(cat)!.map((r) => (
+                  <li key={`r-${r.id}`}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => pick(`recipe:${r.id}`)}
+                      className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                    >
+                      📖 {r.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </li>
           ))}
         </ul>

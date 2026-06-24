@@ -138,20 +138,6 @@ export default function PlanWeek({
       setError(r1.error?.message ?? r2.error?.message ?? null);
   }
 
-  async function moveToDay(id: string, dow: number) {
-    const order = dayEntries(dow).length;
-    setEntries((es) =>
-      es.map((e) =>
-        e.id === id ? { ...e, day_of_week: dow, sort_order: order } : e,
-      ),
-    );
-    const { error } = await supabase
-      .from("meal_plan_entries")
-      .update({ day_of_week: dow, sort_order: order })
-      .eq("id", id);
-    if (error) setError(error.message);
-  }
-
   const noOptions = meals.length === 0 && recipes.length === 0;
 
   return (
@@ -210,20 +196,6 @@ export default function PlanWeek({
                       >
                         ↓
                       </button>
-                      <select
-                        value={e.day_of_week}
-                        onChange={(ev) =>
-                          moveToDay(e.id, Number(ev.target.value))
-                        }
-                        className="rounded border border-slate-300 px-1 py-0.5 text-xs"
-                        aria-label="Move to day"
-                      >
-                        {DAYS.map((d, di) => (
-                          <option key={di} value={di}>
-                            {d.slice(0, 3)}
-                          </option>
-                        ))}
-                      </select>
                       <button
                         onClick={() => removeEntry(e.id)}
                         className="px-1 text-slate-400 hover:text-red-600"
@@ -237,39 +209,97 @@ export default function PlanWeek({
               )}
 
               {!noOptions && (
-                <select
-                  value=""
-                  onChange={(ev) => {
-                    void addEntry(dow, ev.target.value);
-                    ev.target.value = "";
-                  }}
-                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-500"
-                >
-                  <option value="">+ Add to {name}…</option>
-                  {meals.length > 0 && (
-                    <optgroup label="Meals">
-                      {meals.map((m) => (
-                        <option key={m.id} value={`meal:${m.id}`}>
-                          {m.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                  {recipes.length > 0 && (
-                    <optgroup label="Recipes">
-                      {recipes.map((r) => (
-                        <option key={r.id} value={`recipe:${r.id}`}>
-                          {r.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                </select>
+                <DayAdder
+                  dayName={name}
+                  meals={meals}
+                  recipes={recipes}
+                  onAdd={(value) => addEntry(dow, value)}
+                />
               )}
             </section>
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// Per-day add control with a filter over meals + recipes.
+function DayAdder({
+  dayName,
+  meals,
+  recipes,
+  onAdd,
+}: {
+  dayName: string;
+  meals: Option[];
+  recipes: Option[];
+  onAdd: (value: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const ql = q.trim().toLowerCase();
+  const mm = meals.filter((m) => m.name.toLowerCase().includes(ql));
+  const rr = recipes.filter((r) => r.name.toLowerCase().includes(ql));
+
+  function pick(value: string) {
+    onAdd(value);
+    setQ("");
+    setOpen(false);
+  }
+
+  return (
+    <div className="relative">
+      <input
+        value={q}
+        autoComplete="off"
+        onChange={(e) => {
+          setQ(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder={`+ Add to ${dayName} — filter…`}
+        className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+      />
+      {open && (mm.length > 0 || rr.length > 0) && (
+        <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow">
+          {mm.length > 0 && (
+            <li className="px-3 pt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Meals
+            </li>
+          )}
+          {mm.map((m) => (
+            <li key={`m-${m.id}`}>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => pick(`meal:${m.id}`)}
+                className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+              >
+                🍽️ {m.name}
+              </button>
+            </li>
+          ))}
+          {rr.length > 0 && (
+            <li className="px-3 pt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Recipes
+            </li>
+          )}
+          {rr.map((r) => (
+            <li key={`r-${r.id}`}>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => pick(`recipe:${r.id}`)}
+                className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+              >
+                📖 {r.name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

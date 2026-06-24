@@ -142,7 +142,7 @@ create table recipes (
   cook_minutes int,
   image_url    text,
   source_url   text,
-  instructions jsonb not null default '[]'::jsonb,  -- array of step strings
+  instructions text not null default '',     -- steps as markdown text
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now()
 );

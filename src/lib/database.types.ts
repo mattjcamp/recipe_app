@@ -96,7 +96,7 @@ export interface Recipe {
   cook_minutes: number | null;
   image_url: string | null;
   source_url: string | null;
-  instructions: string[];
+  instructions: string; // markdown text
   created_at: string;
   updated_at: string;
 }

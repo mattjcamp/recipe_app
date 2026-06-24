@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Recipe, RecipeIngredient } from "@/lib/database.types";
 import { getCurrentFamily } from "@/lib/family";
 import { PHOTO_BUCKET, SIGNED_URL_TTL } from "@/lib/storage";
+import SimpleMarkdown from "@/components/SimpleMarkdown";
 import RecipePhoto from "./RecipePhoto";
 
 export default async function RecipeDetailPage({
@@ -96,14 +97,10 @@ export default async function RecipeDetailPage({
 
       <section className="mb-6">
         <h2 className="mb-2 font-semibold">Steps</h2>
-        {r.instructions.length === 0 ? (
+        {r.instructions.trim() === "" ? (
           <p className="text-sm text-slate-500">No steps listed.</p>
         ) : (
-          <ol className="list-inside list-decimal space-y-2 text-slate-700">
-            {r.instructions.map((step, i) => (
-              <li key={i}>{step}</li>
-            ))}
-          </ol>
+          <SimpleMarkdown text={r.instructions} />
         )}
       </section>
 

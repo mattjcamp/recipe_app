@@ -35,13 +35,15 @@ export default function RecipeForm({
       <RecipeIngredientsEditor initial={ingredientRows} catalog={catalog} />
 
       <label className="text-sm font-medium text-slate-600">
-        Steps (one per line)
+        Steps (Markdown supported — **bold**, *italic*, # heading, - bullet)
       </label>
       <textarea
         name="instructions"
-        rows={6}
+        rows={8}
         defaultValue={defaults.instructions}
-        placeholder={"Preheat oven to 180C\nMix dry ingredients\n..."}
+        placeholder={
+          "Preheat oven to 180C.\n\nMix dry ingredients, then fold in **2 eggs**.\n\n- Grease the pan\n- Bake 25 min"
+        }
         className="rounded-lg border border-slate-300 px-3 py-2"
       />
 

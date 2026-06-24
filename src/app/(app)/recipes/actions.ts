@@ -41,11 +41,8 @@ export async function createRecipe(formData: FormData) {
   const title = String(formData.get("title") || "").trim();
   if (!title) redirect("/recipes/new?error=Title is required");
 
-  // Steps arrive as a newline-separated textarea.
-  const steps = String(formData.get("instructions") || "")
-    .split("\n")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  // Steps are stored as a single markdown text blob.
+  const steps = String(formData.get("instructions") || "");
 
   const supabase = await createClient();
   const {
@@ -84,10 +81,7 @@ export async function updateRecipe(formData: FormData) {
   const title = String(formData.get("title") || "").trim();
   if (!title) redirect(`/recipes/${id}/edit?error=Title is required`);
 
-  const steps = String(formData.get("instructions") || "")
-    .split("\n")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const steps = String(formData.get("instructions") || "");
 
   const supabase = await createClient();
 

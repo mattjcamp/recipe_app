@@ -66,7 +66,7 @@ export default async function EditRecipePage({
         <RecipeForm
           defaults={{
             title: r.title,
-            instructions: (r.instructions ?? []).join("\n"),
+            instructions: r.instructions ?? "",
             notes: r.description ?? "",
           }}
           ingredientRows={ingredientRows}

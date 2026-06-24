@@ -41,6 +41,16 @@ export interface MealRecipe {
   created_at: string;
 }
 
+export interface MealPlanEntry {
+  id: string;
+  family_id: string;
+  entry_date: string;
+  meal_id: string | null;
+  recipe_id: string | null;
+  sort_order: number;
+  created_at: string;
+}
+
 export interface Location {
   id: string;
   family_id: string;

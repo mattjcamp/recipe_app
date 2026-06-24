@@ -16,6 +16,7 @@ type LinkDef = {
 const LINKS: LinkDef[] = [
   { href: "/lists", label: "Lists", icon: "🛒", offlineOk: true },
   { href: "/pantry", label: "Pantry", icon: "🥫", offlineOk: true },
+  { href: "/plan", label: "Plan", icon: "📅", offlineOk: false },
   { href: "/recipes", label: "Recipes", icon: "📖", offlineOk: false },
   { href: "/family", label: "Family", icon: "👪", offlineOk: false },
 ];
@@ -45,7 +46,7 @@ export default function AppNav({ variant }: { variant: "mobile" | "desktop" }) {
 
   if (variant === "desktop") {
     return (
-      <nav className="sticky bottom-0 hidden grid-cols-4 border-t border-slate-200 bg-white sm:grid">
+      <nav className="sticky bottom-0 hidden grid-cols-5 border-t border-slate-200 bg-white sm:grid">
         {LINKS.map((l) => {
           if (offline && !l.offlineOk) {
             return (

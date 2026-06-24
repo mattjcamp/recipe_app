@@ -1,8 +1,6 @@
 # To Do
 
 
-
-
 # Offline Use
 
 The app grocery list will need to function even without internet. This is a heafty feature so we will need to put some time aside for it. We already did the first two steps to provide a read-only version of the app while offline, but we will need the app to gather changes and then sync once the connection is restored.

@@ -10,6 +10,7 @@ type IngredientRowInput = {
   name: string;
   quantity: string;
   unit: string;
+  is_heading?: boolean;
 };
 
 // Parse the structured ingredient rows submitted by RecipeIngredientsEditor.
@@ -24,10 +25,11 @@ function parseIngredientRows(formData: FormData, recipeId: string) {
     .filter((row) => row && row.name?.trim())
     .map((row, i) => ({
       recipe_id: recipeId,
-      ingredient_id: row.ingredient_id || null,
+      ingredient_id: row.is_heading ? null : row.ingredient_id || null,
       free_text: row.name.trim(),
-      quantity: row.quantity?.trim() || null, // free text, supports fractions
-      unit: row.unit?.trim() || null,
+      quantity: row.is_heading ? null : row.quantity?.trim() || null,
+      unit: row.is_heading ? null : row.unit?.trim() || null,
+      is_heading: !!row.is_heading,
       sort_order: i,
     }));
 }

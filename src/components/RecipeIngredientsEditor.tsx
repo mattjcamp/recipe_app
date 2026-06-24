@@ -8,6 +8,7 @@ export type RecipeIngredientRow = {
   name: string;
   quantity: string;
   unit: string;
+  is_heading?: boolean;
 };
 
 type CatalogItem = Pick<Ingredient, "id" | "name" | "default_unit">;
@@ -49,6 +50,9 @@ export default function RecipeIngredientsEditor({
   }
   function remove(i: number) {
     setRows((r) => r.filter((_, idx) => idx !== i));
+  }
+  function addHeading() {
+    setRows((r) => [...r, { ingredient_id: null, name: "", quantity: "", unit: "", is_heading: true }]);
   }
   function move(i: number, dir: -1 | 1) {
     setRows((r) => {
@@ -112,21 +116,36 @@ export default function RecipeIngredientsEditor({
           {rows.map((row, i) => (
             <li
               key={i}
-              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-2"
+              className={`flex items-center gap-2 rounded-lg border px-2 py-2 ${
+                row.is_heading
+                  ? "border-slate-200 bg-slate-100"
+                  : "border-slate-200 bg-white"
+              }`}
             >
-              <span className="flex-1 truncate text-sm">{row.name}</span>
-              <input
-                value={row.quantity}
-                onChange={(e) => update(i, { quantity: e.target.value })}
-                placeholder="Qty"
-                className="w-14 rounded border border-slate-300 px-2 py-1 text-sm"
-              />
-              <input
-                value={row.unit}
-                onChange={(e) => update(i, { unit: e.target.value })}
-                placeholder="unit"
-                className="w-16 rounded border border-slate-300 px-2 py-1 text-sm"
-              />
+              {row.is_heading ? (
+                <input
+                  value={row.name}
+                  onChange={(e) => update(i, { name: e.target.value })}
+                  placeholder="Heading (e.g. For the sauce)"
+                  className="flex-1 rounded border border-slate-300 px-2 py-1 text-sm font-semibold uppercase tracking-wide"
+                />
+              ) : (
+                <>
+                  <span className="flex-1 truncate text-sm">{row.name}</span>
+                  <input
+                    value={row.quantity}
+                    onChange={(e) => update(i, { quantity: e.target.value })}
+                    placeholder="Qty"
+                    className="w-14 rounded border border-slate-300 px-2 py-1 text-sm"
+                  />
+                  <input
+                    value={row.unit}
+                    onChange={(e) => update(i, { unit: e.target.value })}
+                    placeholder="unit"
+                    className="w-16 rounded border border-slate-300 px-2 py-1 text-sm"
+                  />
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => move(i, -1)}
@@ -149,7 +168,7 @@ export default function RecipeIngredientsEditor({
                 type="button"
                 onClick={() => remove(i)}
                 className="px-1 text-slate-400 hover:text-red-600"
-                aria-label="Remove ingredient"
+                aria-label="Remove"
               >
                 ✕
               </button>
@@ -157,6 +176,14 @@ export default function RecipeIngredientsEditor({
           ))}
         </ul>
       )}
+
+      <button
+        type="button"
+        onClick={addHeading}
+        className="mt-2 text-sm font-medium text-emerald-700 hover:underline"
+      >
+        + Add heading
+      </button>
     </div>
   );
 }

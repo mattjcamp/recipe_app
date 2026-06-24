@@ -109,6 +109,7 @@ export interface RecipeIngredient {
   quantity: string | null; // free text to allow fractions like "1/4"
   unit: string | null;
   note: string | null;
+  is_heading: boolean;
   sort_order: number;
 }
 

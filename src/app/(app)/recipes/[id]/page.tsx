@@ -68,19 +68,29 @@ export default async function RecipeDetailPage({
         {ings.length === 0 ? (
           <p className="text-sm text-slate-500">No ingredients listed.</p>
         ) : (
-          <ul className="list-inside list-disc space-y-1 text-slate-700">
+          <div className="flex flex-col gap-1 text-slate-700">
             {ings.map((ing) => {
+              if (ing.is_heading) {
+                return (
+                  <h3
+                    key={ing.id}
+                    className="mt-3 text-sm font-semibold uppercase tracking-wide text-slate-500 first:mt-0"
+                  >
+                    {ing.free_text}
+                  </h3>
+                );
+              }
               const measure = [ing.quantity, ing.unit]
                 .filter(Boolean)
                 .join(" ");
               return (
-                <li key={ing.id}>
-                  {ing.free_text}
+                <div key={ing.id} className="pl-1">
+                  • {ing.free_text}
                   {measure && `, ${measure}`}
-                </li>
+                </div>
               );
             })}
-          </ul>
+          </div>
         )}
       </section>
 

@@ -67,6 +67,7 @@ export async function addPlanToGroceryList() {
   const { data: recIngs } = await supabase
     .from("recipe_ingredients")
     .select("ingredient_id, free_text, unit")
+    .eq("is_heading", false) // headings aren't shopping items
     .in("recipe_id", [...recipeIds]);
 
   const ingredientIds = [

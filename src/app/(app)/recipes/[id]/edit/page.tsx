@@ -45,6 +45,7 @@ export default async function EditRecipePage({
     name: ing.free_text ?? "",
     quantity: ing.quantity != null ? String(ing.quantity) : "",
     unit: ing.unit ?? "",
+    is_heading: ing.is_heading,
   }));
 
   return (

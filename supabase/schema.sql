@@ -155,6 +155,7 @@ create table recipe_ingredients (
   quantity      text,                      -- free text so fractions work ("1/4")
   unit          text,
   note          text,
+  is_heading    boolean not null default false,  -- groups the rows that follow
   sort_order    int not null default 0
 );
 

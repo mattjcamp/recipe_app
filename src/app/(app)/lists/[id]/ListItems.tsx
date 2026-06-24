@@ -211,15 +211,15 @@ export default function ListItems({
                     >
                       <span className="block font-medium">
                         {item.free_text}
+                        {item.notes && (
+                          <span className="ml-2 text-sm font-normal text-slate-500">
+                            {item.notes}
+                          </span>
+                        )}
                       </span>
                       <span className="block text-sm text-slate-400">
                         {item.quantity != null ? `Qty ${item.quantity}` : "—"}
                       </span>
-                      {item.notes && (
-                        <span className="mt-0.5 block text-sm text-slate-500">
-                          {item.notes}
-                        </span>
-                      )}
                     </span>
                     <span className="text-slate-300">›</span>
                   </Link>

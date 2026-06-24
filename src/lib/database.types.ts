@@ -44,7 +44,7 @@ export interface MealRecipe {
 export interface MealPlanEntry {
   id: string;
   family_id: string;
-  entry_date: string;
+  day_of_week: number; // 0=Sun .. 6=Sat
   meal_id: string | null;
   recipe_id: string | null;
   sort_order: number;

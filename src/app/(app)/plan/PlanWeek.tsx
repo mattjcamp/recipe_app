@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type Entry = {
   id: string;
-  entry_date: string;
+  day_of_week: number;
   sort_order: number;
   kind: "meal" | "recipe";
   refId: string;
@@ -13,25 +13,15 @@ type Entry = {
 };
 type Option = { id: string; name: string };
 
-const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-function startOfWeek(d: Date) {
-  const x = new Date(d);
-  x.setHours(12, 0, 0, 0);
-  x.setDate(x.getDate() - x.getDay()); // back to Sunday
-  return x;
-}
-function addDays(d: Date, n: number) {
-  const x = new Date(d);
-  x.setDate(x.getDate() + n);
-  return x;
-}
-function toYMD(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
+const DAYS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
 
 export default function PlanWeek({
   familyId,
@@ -43,25 +33,8 @@ export default function PlanWeek({
   recipes: Option[];
 }) {
   const supabase = createClient();
-  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date()));
   const [entries, setEntries] = useState<Entry[]>([]);
   const [error, setError] = useState<string | null>(null);
-
-  const days = useMemo(
-    () =>
-      Array.from({ length: 7 }, (_, i) => {
-        const date = addDays(weekStart, i);
-        return {
-          ymd: toYMD(date),
-          dow: DOW[i],
-          label: date.toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-          }),
-        };
-      }),
-    [weekStart],
-  );
 
   const labelFor = useCallback(
     (kind: "meal" | "recipe", refId: string) =>
@@ -72,25 +45,18 @@ export default function PlanWeek({
   );
 
   const load = useCallback(async () => {
-    const from = days[0].ymd;
-    const to = days[6].ymd;
     const { data, error } = await supabase
       .from("meal_plan_entries")
       .select("*")
-      .gte("entry_date", from)
-      .lte("entry_date", to)
       .order("sort_order", { ascending: true });
-    if (error) {
-      setError(error.message);
-      return;
-    }
+    if (error) return setError(error.message);
     setEntries(
       (data ?? []).map((e) => {
         const kind: "meal" | "recipe" = e.meal_id ? "meal" : "recipe";
         const refId = (e.meal_id ?? e.recipe_id) as string;
         return {
           id: e.id,
-          entry_date: e.entry_date,
+          day_of_week: e.day_of_week,
           sort_order: e.sort_order,
           kind,
           refId,
@@ -98,28 +64,27 @@ export default function PlanWeek({
         };
       }),
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days, labelFor]);
+  }, [supabase, labelFor]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const dayEntries = (ymd: string) =>
+  const dayEntries = (dow: number) =>
     entries
-      .filter((e) => e.entry_date === ymd)
+      .filter((e) => e.day_of_week === dow)
       .sort((a, b) => a.sort_order - b.sort_order);
 
-  async function addEntry(ymd: string, value: string) {
+  async function addEntry(dow: number, value: string) {
     if (!value) return;
     const [kind, refId] = value.split(":") as ["meal" | "recipe", string];
-    const order = dayEntries(ymd).length;
+    const order = dayEntries(dow).length;
     setError(null);
     const { data, error } = await supabase
       .from("meal_plan_entries")
       .insert({
         family_id: familyId,
-        entry_date: ymd,
+        day_of_week: dow,
         meal_id: kind === "meal" ? refId : null,
         recipe_id: kind === "recipe" ? refId : null,
         sort_order: order,
@@ -129,14 +94,7 @@ export default function PlanWeek({
     if (error) return setError(error.message);
     setEntries((e) => [
       ...e,
-      {
-        id: data!.id,
-        entry_date: ymd,
-        sort_order: order,
-        kind,
-        refId,
-        label: labelFor(kind, refId),
-      },
+      { id: data!.id, day_of_week: dow, sort_order: order, kind, refId, label: labelFor(kind, refId) },
     ]);
   }
 
@@ -152,11 +110,10 @@ export default function PlanWeek({
   async function reorder(id: string, dir: -1 | 1) {
     const entry = entries.find((e) => e.id === id);
     if (!entry) return;
-    const list = dayEntries(entry.entry_date);
+    const list = dayEntries(entry.day_of_week);
     const idx = list.findIndex((e) => e.id === id);
     const swapWith = list[idx + dir];
     if (!swapWith) return;
-    // swap sort_order values
     const a = entry.sort_order;
     const b = swapWith.sort_order;
     setEntries((es) =>
@@ -180,46 +137,24 @@ export default function PlanWeek({
       setError(r1.error?.message ?? r2.error?.message ?? null);
   }
 
-  async function moveToDay(id: string, ymd: string) {
-    const order = dayEntries(ymd).length;
+  async function moveToDay(id: string, dow: number) {
+    const order = dayEntries(dow).length;
     setEntries((es) =>
       es.map((e) =>
-        e.id === id ? { ...e, entry_date: ymd, sort_order: order } : e,
+        e.id === id ? { ...e, day_of_week: dow, sort_order: order } : e,
       ),
     );
     const { error } = await supabase
       .from("meal_plan_entries")
-      .update({ entry_date: ymd, sort_order: order })
+      .update({ day_of_week: dow, sort_order: order })
       .eq("id", id);
     if (error) setError(error.message);
   }
 
-  const weekLabel = `${days[0].label} – ${days[6].label}`;
   const noOptions = meals.length === 0 && recipes.length === 0;
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <button
-          onClick={() => setWeekStart((w) => addDays(w, -7))}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
-        >
-          ‹ Prev
-        </button>
-        <button
-          onClick={() => setWeekStart(startOfWeek(new Date()))}
-          className="text-sm font-medium text-slate-600"
-        >
-          {weekLabel}
-        </button>
-        <button
-          onClick={() => setWeekStart((w) => addDays(w, 7))}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
-        >
-          Next ›
-        </button>
-      </div>
-
       {error && (
         <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
@@ -232,17 +167,14 @@ export default function PlanWeek({
       )}
 
       <div className="flex flex-col gap-3">
-        {days.map((day) => {
-          const list = dayEntries(day.ymd);
+        {DAYS.map((name, dow) => {
+          const list = dayEntries(dow);
           return (
             <section
-              key={day.ymd}
+              key={dow}
               className="rounded-lg border border-slate-200 bg-white p-3"
             >
-              <h2 className="mb-2 text-sm font-semibold">
-                {day.dow}{" "}
-                <span className="font-normal text-slate-400">{day.label}</span>
-              </h2>
+              <h2 className="mb-2 text-sm font-semibold">{name}</h2>
 
               {list.length > 0 && (
                 <ul className="mb-2 flex flex-col gap-1">
@@ -271,14 +203,16 @@ export default function PlanWeek({
                         ↓
                       </button>
                       <select
-                        value={e.entry_date}
-                        onChange={(ev) => moveToDay(e.id, ev.target.value)}
+                        value={e.day_of_week}
+                        onChange={(ev) =>
+                          moveToDay(e.id, Number(ev.target.value))
+                        }
                         className="rounded border border-slate-300 px-1 py-0.5 text-xs"
                         aria-label="Move to day"
                       >
-                        {days.map((d) => (
-                          <option key={d.ymd} value={d.ymd}>
-                            {d.dow}
+                        {DAYS.map((d, di) => (
+                          <option key={di} value={di}>
+                            {d.slice(0, 3)}
                           </option>
                         ))}
                       </select>
@@ -298,12 +232,12 @@ export default function PlanWeek({
                 <select
                   value=""
                   onChange={(ev) => {
-                    void addEntry(day.ymd, ev.target.value);
+                    void addEntry(dow, ev.target.value);
                     ev.target.value = "";
                   }}
                   className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-500"
                 >
-                  <option value="">+ Add to {day.dow}…</option>
+                  <option value="">+ Add to {name}…</option>
                   {meals.length > 0 && (
                     <optgroup label="Meals">
                       {meals.map((m) => (

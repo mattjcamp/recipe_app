@@ -239,19 +239,20 @@ create index on meal_recipes (meal_id);
 create index on meal_recipes (recipe_id);
 
 -- =============================================================================
--- Weekly meal plan — each entry places a meal OR a recipe on a date
+-- Weekly meal plan — one persistent week; each entry places a meal OR a recipe
+-- on a day of week (0=Sun .. 6=Sat). No calendar dates / history.
 -- =============================================================================
 create table meal_plan_entries (
-  id         uuid primary key default gen_random_uuid(),
-  family_id  uuid not null references families(id) on delete cascade,
-  entry_date date not null,
-  meal_id    uuid references meals(id) on delete cascade,
-  recipe_id  uuid references recipes(id) on delete cascade,
-  sort_order int not null default 0,
-  created_at timestamptz not null default now(),
+  id          uuid primary key default gen_random_uuid(),
+  family_id   uuid not null references families(id) on delete cascade,
+  day_of_week int not null default 0 check (day_of_week between 0 and 6),
+  meal_id     uuid references meals(id) on delete cascade,
+  recipe_id   uuid references recipes(id) on delete cascade,
+  sort_order  int not null default 0,
+  created_at  timestamptz not null default now(),
   check (meal_id is not null or recipe_id is not null)
 );
-create index on meal_plan_entries (family_id, entry_date);
+create index on meal_plan_entries (family_id);
 
 -- =============================================================================
 -- Macro tracking (Phase 3 — personal, user-scoped not family-scoped)

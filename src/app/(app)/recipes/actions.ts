@@ -10,6 +10,7 @@ type IngredientRowInput = {
   name: string;
   quantity: string;
   unit: string;
+  note?: string;
   is_heading?: boolean;
 };
 
@@ -29,6 +30,7 @@ function parseIngredientRows(formData: FormData, recipeId: string) {
       free_text: row.name.trim(),
       quantity: row.is_heading ? null : row.quantity?.trim() || null,
       unit: row.is_heading ? null : row.unit?.trim() || null,
+      note: row.is_heading ? null : row.note?.trim() || null,
       is_heading: !!row.is_heading,
       sort_order: i,
     }));
@@ -110,6 +112,85 @@ export async function updateRecipe(formData: FormData) {
   revalidatePath(`/recipes/${id}`);
   revalidatePath("/recipes");
   redirect(`/recipes/${id}`);
+}
+
+export async function deleteRecipe(formData: FormData) {
+  const id = String(formData.get("id") || "");
+  if (!id) redirect("/recipes");
+
+  const supabase = await createClient();
+
+  // Child rows (ingredients, meal links, plan entries) cascade on delete;
+  // food_logs.recipe_id is set null. So removing the recipe row is enough.
+  const { error } = await supabase.from("recipes").delete().eq("id", id);
+
+  if (error) {
+    redirect(`/recipes/${id}/edit?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/recipes");
+  redirect("/recipes");
+}
+
+// Update a single recipe ingredient from its dedicated detail screen.
+// Mirrors the per-item edit flow used by grocery/pantry items.
+export async function updateRecipeIngredient(formData: FormData) {
+  const recipeId = String(formData.get("recipe_id") || "");
+  const id = String(formData.get("id") || "");
+  if (!recipeId || !id) redirect("/recipes");
+
+  const name = String(formData.get("name") || "").trim();
+  if (!name) {
+    redirect(
+      `/recipes/${recipeId}/ingredients/${id}?error=${encodeURIComponent("Name is required")}`,
+    );
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("recipe_ingredients")
+    .update({
+      free_text: name,
+      quantity: String(formData.get("quantity") || "").trim() || null,
+      unit: String(formData.get("unit") || "").trim() || null,
+      note: String(formData.get("notes") || "").trim() || null,
+    })
+    .eq("id", id)
+    .eq("recipe_id", recipeId);
+
+  if (error) {
+    redirect(
+      `/recipes/${recipeId}/ingredients/${id}?error=${encodeURIComponent(error.message)}`,
+    );
+  }
+
+  revalidatePath(`/recipes/${recipeId}`);
+  revalidatePath(`/recipes/${recipeId}/edit`);
+  redirect(`/recipes/${recipeId}/edit`);
+}
+
+// Delete a single recipe ingredient from its detail screen.
+export async function deleteRecipeIngredient(formData: FormData) {
+  const recipeId = String(formData.get("recipe_id") || "");
+  const id = String(formData.get("id") || "");
+  if (!recipeId || !id) redirect("/recipes");
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("recipe_ingredients")
+    .delete()
+    .eq("id", id)
+    .eq("recipe_id", recipeId);
+
+  if (error) {
+    redirect(
+      `/recipes/${recipeId}/ingredients/${id}?error=${encodeURIComponent(error.message)}`,
+    );
+  }
+
+  revalidatePath(`/recipes/${recipeId}`);
+  revalidatePath(`/recipes/${recipeId}/edit`);
+  redirect(`/recipes/${recipeId}/edit`);
 }
 
 // Persist the storage path of an uploaded recipe photo.

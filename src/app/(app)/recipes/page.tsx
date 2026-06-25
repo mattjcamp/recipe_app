@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { Recipe } from "@/lib/database.types";
 import { PHOTO_BUCKET, SIGNED_URL_TTL } from "@/lib/storage";
+import RecipeBrowser, { type RecipeListItem } from "./RecipeBrowser";
 
 export default async function RecipesPage() {
   const supabase = await createClient();
@@ -24,44 +25,29 @@ export default async function RecipesPage() {
     }
   }
 
-  // Group by category; named categories alphabetical, "Uncategorized" last.
-  const groups = new Map<string, Recipe[]>();
-  for (const r of list) {
-    const key = r.category?.trim() || "";
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(r);
+  // Collect ingredient names per recipe so the search bar can match on them.
+  const ingredientsByRecipe = new Map<string, string[]>();
+  if (list.length > 0) {
+    const { data: ingRows } = await supabase
+      .from("recipe_ingredients")
+      .select("recipe_id, free_text, is_heading");
+    for (const row of (ingRows as
+      | { recipe_id: string; free_text: string | null; is_heading: boolean }[]
+      | null) ?? []) {
+      if (row.is_heading || !row.free_text) continue;
+      const arr = ingredientsByRecipe.get(row.recipe_id) ?? [];
+      arr.push(row.free_text);
+      ingredientsByRecipe.set(row.recipe_id, arr);
+    }
   }
-  const orderedKeys = [...groups.keys()].sort((a, b) => {
-    if (a === "") return 1;
-    if (b === "") return -1;
-    return a.localeCompare(b);
-  });
 
-  function card(r: Recipe) {
-    const thumb = r.image_url ? thumbs[r.image_url] : null;
-    return (
-      <li key={r.id}>
-        <Link
-          href={`/recipes/${r.id}`}
-          className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 hover:border-emerald-300"
-        >
-          {thumb ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={thumb}
-              alt=""
-              className="h-14 w-14 shrink-0 rounded-lg object-cover"
-            />
-          ) : (
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xl">
-              📖
-            </div>
-          )}
-          <p className="font-medium">{r.title}</p>
-        </Link>
-      </li>
-    );
-  }
+  const items: RecipeListItem[] = list.map((r) => ({
+    id: r.id,
+    title: r.title,
+    category: r.category?.trim() || "",
+    thumb: r.image_url ? thumbs[r.image_url] ?? null : null,
+    ingredients: (ingredientsByRecipe.get(r.id) ?? []).join(" ").toLowerCase(),
+  }));
 
   return (
     <div>
@@ -80,18 +66,7 @@ export default async function RecipesPage() {
           No recipes yet. Add your family favourites.
         </p>
       ) : (
-        <div className="flex flex-col gap-5">
-          {orderedKeys.map((key) => (
-            <section key={key || "uncategorized"}>
-              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                {key || "Uncategorized"}
-              </h2>
-              <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {groups.get(key)!.map((r) => card(r))}
-              </ul>
-            </section>
-          ))}
-        </div>
+        <RecipeBrowser items={items} />
       )}
     </div>
   );

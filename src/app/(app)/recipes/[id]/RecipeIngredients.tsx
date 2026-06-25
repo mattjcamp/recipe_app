@@ -4,9 +4,11 @@ import { useState } from "react";
 import type { RecipeIngredient } from "@/lib/database.types";
 import { scaleQuantityText } from "@/lib/quantity";
 
-const FACTORS = [0.5, 1, 1.5, 2, 3];
+const THIRD = 1 / 3;
+const FACTORS = [THIRD, 0.5, 1, 1.5, 2, 3];
 
 function label(f: number) {
+  if (Math.abs(f - THIRD) < 1e-6) return "⅓×";
   if (f === 0.5) return "½×";
   if (f === 1.5) return "1½×";
   return `${f}×`;
@@ -58,6 +60,9 @@ export default function RecipeIngredients({
             <div key={ing.id} className="pl-1">
               • {ing.free_text}
               {measure && `, ${measure}`}
+              {ing.note && (
+                <span className="text-slate-400"> ({ing.note})</span>
+              )}
             </div>
           );
         })}

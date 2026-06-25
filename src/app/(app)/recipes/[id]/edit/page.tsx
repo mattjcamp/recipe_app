@@ -5,6 +5,7 @@ import type { Recipe, RecipeIngredient, Ingredient } from "@/lib/database.types"
 import RecipeForm from "@/components/RecipeForm";
 import type { RecipeIngredientRow } from "@/components/RecipeIngredientsEditor";
 import { updateRecipe } from "../../actions";
+import DeleteRecipe from "./DeleteRecipe";
 
 export default async function EditRecipePage({
   params,
@@ -41,10 +42,12 @@ export default async function EditRecipePage({
   const ingredientRows: RecipeIngredientRow[] = (
     (ingData as RecipeIngredient[]) ?? []
   ).map((ing) => ({
+    id: ing.id,
     ingredient_id: ing.ingredient_id,
     name: ing.free_text ?? "",
     quantity: ing.quantity != null ? String(ing.quantity) : "",
     unit: ing.unit ?? "",
+    note: ing.note ?? undefined,
     is_heading: ing.is_heading,
   }));
 
@@ -64,6 +67,7 @@ export default async function EditRecipePage({
       <form action={updateRecipe} className="flex flex-col gap-3">
         <input type="hidden" name="id" value={r.id} />
         <RecipeForm
+          recipeId={r.id}
           defaults={{
             title: r.title,
             category: r.category ?? "",
@@ -80,6 +84,8 @@ export default async function EditRecipePage({
           Save changes
         </button>
       </form>
+
+      <DeleteRecipe id={r.id} />
     </div>
   );
 }

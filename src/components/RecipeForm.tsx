@@ -23,10 +23,12 @@ export default function RecipeForm({
   defaults = EMPTY,
   ingredientRows,
   catalog,
+  recipeId,
 }: {
   defaults?: RecipeFormDefaults;
   ingredientRows: RecipeIngredientRow[];
   catalog: Pick<Ingredient, "id" | "name" | "default_unit">[];
+  recipeId?: string;
 }) {
   return (
     <>
@@ -44,7 +46,11 @@ export default function RecipeForm({
         className="rounded-lg border border-slate-300 px-3 py-2"
       />
 
-      <RecipeIngredientsEditor initial={ingredientRows} catalog={catalog} />
+      <RecipeIngredientsEditor
+        initial={ingredientRows}
+        catalog={catalog}
+        recipeId={recipeId}
+      />
 
       <label className="text-sm font-medium text-slate-600">
         Steps (Markdown supported — **bold**, *italic*, # heading, - bullet)

@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 type MealRecipeRow = { id: string; recipe_id: string; title: string };
-type RecipeOption = { id: string; title: string };
+type RecipeOption = {
+  id: string;
+  title: string;
+  category: string; // "" means uncategorized
+  ingredients: string; // lowercased, space-joined ingredient names for search
+};
 
 export default function MealEditor({
   mealId,
@@ -22,13 +27,28 @@ export default function MealEditor({
   const router = useRouter();
   const [name, setName] = useState(initialName);
   const [rows, setRows] = useState<MealRecipeRow[]>(initialRecipes);
-  const [pick, setPick] = useState("");
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of allRecipes) if (r.category) set.add(r.category);
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [allRecipes]);
 
   const available = useMemo(() => {
     const used = new Set(rows.map((r) => r.recipe_id));
-    return allRecipes.filter((r) => !used.has(r.id));
-  }, [rows, allRecipes]);
+    const q = query.trim().toLowerCase();
+    return allRecipes.filter((r) => {
+      if (used.has(r.id)) return false;
+      if (category && r.category !== category) return false;
+      if (!q) return true;
+      return r.title.toLowerCase().includes(q) || r.ingredients.includes(q);
+    });
+  }, [rows, allRecipes, query, category]);
+
+  const allUsed = rows.length >= allRecipes.length;
 
   async function saveName() {
     const trimmed = name.trim();
@@ -40,22 +60,20 @@ export default function MealEditor({
     if (error) setError(error.message);
   }
 
-  async function addRecipe() {
-    if (!pick) return;
-    const recipe = allRecipes.find((r) => r.id === pick);
+  async function addRecipe(recipeId: string) {
+    const recipe = allRecipes.find((r) => r.id === recipeId);
     if (!recipe) return;
     setError(null);
     const { data, error } = await supabase
       .from("meal_recipes")
-      .insert({ meal_id: mealId, recipe_id: pick, sort_order: rows.length })
+      .insert({ meal_id: mealId, recipe_id: recipeId, sort_order: rows.length })
       .select("id, recipe_id")
       .single();
     if (error) return setError(error.message);
     setRows((r) => [
       ...r,
-      { id: data!.id, recipe_id: pick, title: recipe.title },
+      { id: data!.id, recipe_id: recipeId, title: recipe.title },
     ]);
-    setPick("");
   }
 
   async function removeRecipe(rowId: string) {
@@ -123,34 +141,66 @@ export default function MealEditor({
           </ul>
         )}
 
-        {available.length > 0 ? (
-          <div className="flex gap-2">
-            <select
-              value={pick}
-              onChange={(e) => setPick(e.target.value)}
-              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            >
-              <option value="">Add a recipe…</option>
-              {available.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.title}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={addRecipe}
-              disabled={!pick}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-            >
-              Add
-            </button>
-          </div>
-        ) : (
+        {allRecipes.length === 0 ? (
           <p className="text-sm text-slate-400">
-            {allRecipes.length === 0
-              ? "Create recipes first, then add them here."
-              : "All recipes are already in this meal."}
+            Create recipes first, then add them here.
           </p>
+        ) : allUsed ? (
+          <p className="text-sm text-slate-400">
+            All recipes are already in this meal.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search recipes or ingredients…"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm sm:w-48"
+              >
+                <option value="">All categories</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {available.length === 0 ? (
+              <p className="text-sm text-slate-400">
+                No recipes match your filters.
+              </p>
+            ) : (
+              <ul className="flex max-h-72 flex-col gap-1 overflow-auto rounded-lg border border-slate-200 p-1">
+                {available.map((r) => (
+                  <li key={r.id}>
+                    <button
+                      onClick={() => addRecipe(r.id)}
+                      className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-emerald-50"
+                    >
+                      <span className="truncate">{r.title}</span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        {r.category && (
+                          <span className="hidden text-xs text-slate-400 sm:inline">
+                            {r.category}
+                          </span>
+                        )}
+                        <span className="font-medium text-emerald-700">
+                          + Add
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </section>
 

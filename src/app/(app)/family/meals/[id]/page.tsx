@@ -28,18 +28,22 @@ export default async function MealDetailPage({
   if (!meal) notFound();
   const m = meal as Meal;
 
-  const [{ data: mealRecipes }, { data: recipes }] = await Promise.all([
-    supabase
-      .from("meal_recipes")
-      .select("id, recipe_id, recipes(title)")
-      .eq("meal_id", id)
-      .order("sort_order", { ascending: true }),
-    supabase
-      .from("recipes")
-      .select("id, title")
-      .order("category", { nullsFirst: false })
-      .order("title"),
-  ]);
+  const [{ data: mealRecipes }, { data: recipes }, { data: ingRows }] =
+    await Promise.all([
+      supabase
+        .from("meal_recipes")
+        .select("id, recipe_id, recipes(title)")
+        .eq("meal_id", id)
+        .order("sort_order", { ascending: true }),
+      supabase
+        .from("recipes")
+        .select("id, title, category")
+        .order("category", { nullsFirst: false })
+        .order("title"),
+      supabase
+        .from("recipe_ingredients")
+        .select("recipe_id, free_text, is_heading"),
+    ]);
 
   const rows = ((mealRecipes as MealRecipeJoin[]) ?? []).map((mr) => {
     const rec = Array.isArray(mr.recipes) ? mr.recipes[0] : mr.recipes;
@@ -50,9 +54,25 @@ export default async function MealDetailPage({
     };
   });
 
-  const allRecipes = ((recipes as Pick<Recipe, "id" | "title">[]) ?? []).map(
-    (r) => ({ id: r.id, title: r.title }),
-  );
+  // Collect ingredient names per recipe so the picker can search on them.
+  const ingredientsByRecipe = new Map<string, string[]>();
+  for (const row of (ingRows as
+    | { recipe_id: string; free_text: string | null; is_heading: boolean }[]
+    | null) ?? []) {
+    if (row.is_heading || !row.free_text) continue;
+    const arr = ingredientsByRecipe.get(row.recipe_id) ?? [];
+    arr.push(row.free_text);
+    ingredientsByRecipe.set(row.recipe_id, arr);
+  }
+
+  const allRecipes = (
+    (recipes as Pick<Recipe, "id" | "title" | "category">[]) ?? []
+  ).map((r) => ({
+    id: r.id,
+    title: r.title,
+    category: r.category?.trim() || "",
+    ingredients: (ingredientsByRecipe.get(r.id) ?? []).join(" ").toLowerCase(),
+  }));
 
   return (
     <div>

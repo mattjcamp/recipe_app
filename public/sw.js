@@ -1,9 +1,19 @@
-// Recipe App service worker — offline app shell + last-visited page caching.
-// Bump VERSION to force clients onto a fresh cache after a deploy.
-const VERSION = "v2";
+// Recipe App service worker.
+//
+// Goals (especially for using the app away from home):
+//   1. Recipe photos load instantly and reliably, even on a flaky connection.
+//   2. Pages render immediately from cache, refreshing quietly in the
+//      background.
+//
+// Bump VERSION to force clients onto fresh page/static caches after a deploy.
+// The image cache is intentionally NOT versioned so cached photos survive
+// deploys (their contents never change — see the note on signed URLs below).
+const VERSION = "v3";
 const STATIC_CACHE = `static-${VERSION}`;
 const PAGE_CACHE = `pages-${VERSION}`;
+const IMAGE_CACHE = "images"; // durable across deploys
 const OFFLINE_URL = "/offline.html";
+const MAX_IMAGES = 400; // rough cap to keep storage bounded
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -15,47 +25,98 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
+  const keep = new Set([STATIC_CACHE, PAGE_CACHE, IMAGE_CACHE]);
   event.waitUntil(
     caches
       .keys()
       .then((keys) =>
-        Promise.all(
-          keys
-            .filter((k) => k !== STATIC_CACHE && k !== PAGE_CACHE)
-            .map((k) => caches.delete(k)),
-        ),
+        Promise.all(keys.filter((k) => !keep.has(k)).map((k) => caches.delete(k))),
       )
       .then(() => self.clients.claim()),
   );
 });
+
+// Supabase Storage objects (private recipe/ingredient photos) are served via
+// signed URLs. The signing token in the query string changes on every page
+// load, but the object PATH is immutable — each upload writes a brand-new
+// random filename. So we cache by the path alone (dropping the query) and serve
+// the cached bytes back no matter which token the page requests with. This is
+// what stops photos from re-downloading every visit and makes them work offline.
+function isStorageImage(url) {
+  return url.pathname.includes("/storage/v1/object/");
+}
+
+async function trimImageCache(cache) {
+  const keys = await cache.keys();
+  const excess = keys.length - MAX_IMAGES;
+  // keys() preserves insertion order, so deleting from the front is ~FIFO.
+  for (let i = 0; i < excess; i++) await cache.delete(keys[i]);
+}
+
+async function handleImage(request) {
+  const cache = await caches.open(IMAGE_CACHE);
+  const keyUrl = request.url.split("?")[0]; // stable key: path without token
+  const cached = await cache.match(keyUrl);
+  if (cached) return cached;
+
+  try {
+    // CORS fetch so we can read the status and avoid caching error responses
+    // (e.g. an expired-token 403). Supabase Storage allows cross-origin GETs.
+    const res = await fetch(request.url, { mode: "cors" });
+    if (res && res.ok) {
+      await cache.put(keyUrl, res.clone());
+      await trimImageCache(cache);
+    }
+    return res;
+  } catch {
+    // Offline or CORS blocked: last-ditch opaque fetch so the <img> still has a
+    // chance to render; not cached (can't verify it succeeded).
+    return fetch(request).catch(() => Response.error());
+  }
+}
+
+// Pages: serve from cache immediately when available, and refresh in the
+// background for next time (stale-while-revalidate). Falls back to the network
+// (then the offline page) when nothing is cached yet.
+async function handleNavigate(request) {
+  const cache = await caches.open(PAGE_CACHE);
+  const cached = await cache.match(request);
+  const netPromise = fetch(request)
+    .then((res) => {
+      if (res && res.ok && res.type === "basic") cache.put(request, res.clone());
+      return res;
+    })
+    .catch(() => null);
+
+  if (cached) {
+    netPromise; // keep updating in the background
+    return cached;
+  }
+  const res = await netPromise;
+  return res || (await caches.match(OFFLINE_URL)) || Response.error();
+}
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
 
   const url = new URL(request.url);
-  // Only handle same-origin requests; let Supabase/API calls pass through.
-  if (url.origin !== self.location.origin) return;
 
-  // Page navigations: network-first, fall back to the cached page, then offline.
-  if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(PAGE_CACHE).then((c) => c.put(request, copy));
-          return res;
-        })
-        .catch(() =>
-          caches
-            .match(request)
-            .then((cached) => cached || caches.match(OFFLINE_URL)),
-        ),
-    );
+  // Cross-origin Supabase Storage photos: cache by immutable path.
+  if (isStorageImage(url)) {
+    event.respondWith(handleImage(request));
     return;
   }
 
-  // Static assets (immutable, hashed): cache-first.
+  // Other cross-origin requests (Supabase API / auth): pass through untouched.
+  if (url.origin !== self.location.origin) return;
+
+  if (request.mode === "navigate") {
+    event.respondWith(handleNavigate(request));
+    return;
+  }
+
+  // Same-origin static assets (immutable, hashed): cache-first.
   const isAsset =
     url.pathname.startsWith("/_next/static") ||
     request.destination === "script" ||
@@ -70,8 +131,10 @@ self.addEventListener("fetch", (event) => {
           cached ||
           fetch(request)
             .then((res) => {
-              const copy = res.clone();
-              caches.open(STATIC_CACHE).then((c) => c.put(request, copy));
+              if (res && res.ok) {
+                const copy = res.clone();
+                caches.open(STATIC_CACHE).then((c) => c.put(request, copy));
+              }
               return res;
             })
             .catch(() => cached),

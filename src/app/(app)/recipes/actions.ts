@@ -193,6 +193,36 @@ export async function deleteRecipeIngredient(formData: FormData) {
   redirect(`/recipes/${recipeId}/edit`);
 }
 
+// Publish a recipe as a public web page (assigns slugs on first publish).
+// Returns the family + recipe slugs so the caller can build the public URL.
+export async function publishRecipe(
+  recipeId: string,
+): Promise<{ familySlug: string; recipeSlug: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("publish_recipe", {
+    p_recipe_id: recipeId,
+    p_published: true,
+  });
+  if (error) throw new Error(error.message);
+  const row = (Array.isArray(data) ? data[0] : data) as {
+    family_slug: string;
+    recipe_slug: string;
+  };
+  revalidatePath(`/recipes/${recipeId}`);
+  return { familySlug: row.family_slug, recipeSlug: row.recipe_slug };
+}
+
+// Stop sharing a recipe publicly (keeps the slug so re-sharing reuses the URL).
+export async function unpublishRecipe(recipeId: string): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("publish_recipe", {
+    p_recipe_id: recipeId,
+    p_published: false,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/recipes/${recipeId}`);
+}
+
 // Persist the storage path of an uploaded recipe photo.
 export async function setRecipeImage(recipeId: string, path: string | null) {
   const supabase = await createClient();

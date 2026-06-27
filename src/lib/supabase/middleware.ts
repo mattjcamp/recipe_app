@@ -42,13 +42,22 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isPublic =
-    path.startsWith("/login") ||
-    path.startsWith("/signup") ||
-    path.startsWith("/auth") ||
-    path.startsWith("/join");
 
-  if (!user && !isPublic) {
+  // Only the app's own areas require a login. Everything else — auth pages and
+  // the public shared-recipe pages at /<family>/<recipe> — is reachable signed
+  // out. (Those public pages only ever expose published recipes via RLS.)
+  const protectedPrefixes = [
+    "/recipes",
+    "/lists",
+    "/plan",
+    "/family",
+    "/onboarding",
+  ];
+  const isProtected =
+    path === "/" ||
+    protectedPrefixes.some((p) => path === p || path.startsWith(`${p}/`));
+
+  if (!user && isProtected) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);

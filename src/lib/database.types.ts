@@ -8,6 +8,7 @@ export type MealType = "breakfast" | "lunch" | "dinner" | "snack";
 export interface Family {
   id: string;
   name: string;
+  slug: string | null; // public URL slug, assigned on first recipe publish
   created_at: string;
   updated_at: string;
 }
@@ -98,6 +99,8 @@ export interface Recipe {
   image_url: string | null;
   source_url: string | null;
   instructions: string; // markdown text
+  published: boolean; // shared as a public web page
+  slug: string | null; // URL slug, assigned on first publish
   created_at: string;
   updated_at: string;
 }

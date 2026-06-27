@@ -7,6 +7,7 @@ import { PHOTO_BUCKET, SIGNED_URL_TTL } from "@/lib/storage";
 import SimpleMarkdown from "@/components/SimpleMarkdown";
 import RecipePhoto from "./RecipePhoto";
 import RecipeIngredients from "./RecipeIngredients";
+import ShareRecipe from "./ShareRecipe";
 
 export default async function RecipeDetailPage({
   params,
@@ -42,6 +43,13 @@ export default async function RecipeDetailPage({
     initialPhotoUrl = data?.signedUrl ?? null;
   }
 
+  const { data: famRow } = await supabase
+    .from("families")
+    .select("slug")
+    .eq("id", r.family_id)
+    .maybeSingle();
+  const familySlug = (famRow as { slug: string | null } | null)?.slug ?? null;
+
   return (
     <div>
       <div className="flex items-center justify-between">
@@ -60,6 +68,13 @@ export default async function RecipeDetailPage({
         <p className="mb-4 text-sm text-slate-500">{r.category}</p>
       )}
       {!r.category && <div className="mb-4" />}
+
+      <ShareRecipe
+        recipeId={r.id}
+        initialPublished={r.published}
+        familySlug={familySlug}
+        recipeSlug={r.slug}
+      />
 
       {family && (
         <RecipePhoto

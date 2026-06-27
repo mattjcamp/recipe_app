@@ -39,6 +39,62 @@ export const PHOTO_FIELDS: ReadonlyArray<{ table: BackupTable; field: string }> 
   { table: "grocery_list_items", field: "image_path" },
 ];
 
+// Foreign-key columns to rewrite when re-id'ing a backup, keyed by table.
+// `ref` is the table whose id map supplies the replacement value.
+export const FOREIGN_KEYS: Record<string, { field: string; ref: BackupTable }[]> = {
+  ingredients: [{ field: "location_id", ref: "locations" }],
+  recipe_ingredients: [
+    { field: "recipe_id", ref: "recipes" },
+    { field: "ingredient_id", ref: "ingredients" },
+  ],
+  grocery_list_items: [
+    { field: "list_id", ref: "grocery_lists" },
+    { field: "ingredient_id", ref: "ingredients" },
+    { field: "location_id", ref: "locations" },
+  ],
+  pantry_items: [{ field: "ingredient_id", ref: "ingredients" }],
+  meal_recipes: [
+    { field: "meal_id", ref: "meals" },
+    { field: "recipe_id", ref: "recipes" },
+  ],
+  meal_plan_entries: [
+    { field: "meal_id", ref: "meals" },
+    { field: "recipe_id", ref: "recipes" },
+  ],
+};
+
+// Give every row in a backup a fresh UUID and rewrite all foreign keys to
+// match, in place. This lets a backup be restored into ANY family without
+// colliding with primary keys that still exist in the source family (e.g.
+// restoring your real data into a throwaway test family).
+export function remapBackupIds(tables: Record<string, Row[]>): void {
+  const maps: Record<string, Map<string, string>> = {};
+  for (const table of BACKUP_TABLES) {
+    const map = new Map<string, string>();
+    for (const row of tables[table] ?? []) {
+      const id = row.id;
+      if (typeof id === "string") map.set(id, crypto.randomUUID());
+    }
+    maps[table] = map;
+  }
+
+  for (const table of BACKUP_TABLES) {
+    for (const row of tables[table] ?? []) {
+      if (typeof row.id === "string") {
+        const next = maps[table].get(row.id);
+        if (next) row.id = next;
+      }
+      for (const fk of FOREIGN_KEYS[table] ?? []) {
+        const value = row[fk.field];
+        if (typeof value === "string") {
+          const next = maps[fk.ref].get(value);
+          if (next) row[fk.field] = next;
+        }
+      }
+    }
+  }
+}
+
 // Storage paths are "<familyId>/<scope>/<owner>/<file>". Re-root one under a
 // (possibly different) family id so a restore works even into a new family.
 export function rerootPath(path: string, familyId: string): string {

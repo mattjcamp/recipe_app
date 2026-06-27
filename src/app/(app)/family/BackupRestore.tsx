@@ -8,6 +8,7 @@ import {
   PHOTO_FIELDS,
   rerootPath,
   contentTypeFor,
+  remapBackupIds,
   type Row,
 } from "@/lib/backup";
 
@@ -146,6 +147,10 @@ export default function BackupRestore({
       if (!dataEntry) throw new Error("This zip has no data.json — not a valid backup.");
       const data = JSON.parse(await dataEntry.async("string")) as BackupPayload;
       if (!data?.tables) throw new Error("This file isn't a valid backup.");
+
+      // Give every row a fresh id so the restore can't collide with primary
+      // keys that still exist in the family this backup came from.
+      remapBackupIds(data.tables);
 
       // Re-upload photos under this family's Storage prefix, rewriting paths.
       const supabase = createClient();

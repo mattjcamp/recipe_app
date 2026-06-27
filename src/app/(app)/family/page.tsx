@@ -6,6 +6,7 @@ import Link from "next/link";
 import { signOut } from "../../login/actions";
 import { createInvite, revokeInvite, removeMember } from "./actions";
 import CopyLink from "./CopyLink";
+import BackupRestore from "./BackupRestore";
 
 export default async function FamilyPage({
   searchParams,
@@ -104,6 +105,12 @@ export default async function FamilyPage({
         <span className="font-medium">🍽️ Meals</span>
         <span className="text-slate-300">›</span>
       </Link>
+
+      <BackupRestore
+        familyId={family.familyId}
+        familyName={family.name}
+        isOwner={isOwner}
+      />
 
       <section className="mb-8">
         <h2 className="mb-2 font-semibold">Members</h2>

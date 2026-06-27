@@ -157,20 +157,26 @@ export default function BackupRestore({
       const photos = collectPhotoRows(data.tables);
       let done = 0;
       let failed = 0;
+      const photoErrors: string[] = [];
       await runPool(
         photos,
         async ({ row, field, path }) => {
           const newPath = rerootPath(path, familyId);
           const entry = zip.file(`photos/${path}`);
           if (entry) {
-            const blob = await entry.async("blob");
+            // Rebuild the blob WITH its image content type — zip extraction
+            // drops it, and the bucket rejects anything that isn't a known
+            // image MIME type.
+            const type = contentTypeFor(path);
+            const buf = await entry.async("arraybuffer");
+            const blob = new Blob([buf], { type });
             const { error: uErr } = await supabase.storage
               .from(PHOTO_BUCKET)
-              .upload(newPath, blob, {
-                upsert: true,
-                contentType: contentTypeFor(path),
-              });
-            if (uErr) failed++;
+              .upload(newPath, blob, { upsert: true, contentType: type });
+            if (uErr) {
+              failed++;
+              photoErrors.push(uErr.message);
+            }
           }
           row[field] = newPath;
           done++;
@@ -188,11 +194,20 @@ export default function BackupRestore({
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || "Restore failed.");
 
+      if (failed) {
+        setError(
+          `Data restored, but ${failed} photo${failed === 1 ? "" : "s"} failed to upload${
+            photoErrors[0] ? `: ${photoErrors[0]}` : ""
+          }`,
+        );
+      }
       setStatus(
-        `Restore complete${failed ? ` (${failed} photos couldn't be uploaded)` : ""}. Reloading…`,
+        failed ? "Data restored (some photos missing)." : "Restore complete. Reloading…",
       );
-      router.refresh();
-      setTimeout(() => window.location.assign("/recipes"), 800);
+      if (!failed) {
+        router.refresh();
+        setTimeout(() => window.location.assign("/recipes"), 800);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Restore failed.");
       setStatus(null);

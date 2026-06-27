@@ -143,7 +143,20 @@ export default async function PublicRecipePage({
       )}
 
       <footer className="mt-10 border-t border-slate-200 pt-4 text-xs text-slate-400">
-        Shared from {family.name}&apos;s kitchen.
+        <p>Shared from {family.name}&apos;s kitchen.</p>
+        {recipe.source_url && (
+          <p className="mt-1">
+            Originally from{" "}
+            <a
+              href={recipe.source_url}
+              target="_blank"
+              rel="noreferrer"
+              className="underline hover:text-slate-600"
+            >
+              {recipe.source_url}
+            </a>
+          </p>
+        )}
       </footer>
     </main>
   );

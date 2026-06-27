@@ -1,4 +1,3 @@
 # To-Do
 
-- import from URL
-- export to JSON, Markdown, HTML
+- move the recipe share button to the bottom of the recipe

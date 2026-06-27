@@ -53,12 +53,20 @@ export default async function RecipesPage() {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Recipes</h1>
-        <Link
-          href="/recipes/new"
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-        >
-          + New
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/recipes/import"
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Import
+          </Link>
+          <Link
+            href="/recipes/new"
+            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+          >
+            + New
+          </Link>
+        </div>
       </div>
 
       {list.length === 0 ? (

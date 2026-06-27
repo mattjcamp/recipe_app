@@ -69,6 +69,19 @@ export default async function RecipeDetailPage({
       )}
       {!r.category && <div className="mb-4" />}
 
+      {r.source_url && (
+        <p className="-mt-3 mb-4 text-sm">
+          <a
+            href={r.source_url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-emerald-700 hover:underline"
+          >
+            View original source ↗
+          </a>
+        </p>
+      )}
+
       <ShareRecipe
         recipeId={r.id}
         initialPublished={r.published}

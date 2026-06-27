@@ -4,6 +4,62 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentFamily } from "@/lib/family";
+import { parseRecipeFromHtml, type ParsedRecipe } from "@/lib/recipeImport";
+
+// Fetch a web page and extract a recipe from it (schema.org JSON-LD, with a
+// title-only fallback). Returns parsed fields for the user to review — it does
+// NOT save anything.
+export async function importRecipeFromUrl(rawUrl: string): Promise<ParsedRecipe> {
+  let u: URL;
+  try {
+    u = new URL(rawUrl.trim());
+  } catch {
+    throw new Error("That doesn't look like a valid URL.");
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") {
+    throw new Error("Only http(s) links are supported.");
+  }
+  const host = u.hostname.toLowerCase();
+  const blocked =
+    host === "localhost" ||
+    host === "0.0.0.0" ||
+    host === "::1" ||
+    host.endsWith(".local") ||
+    /^127\./.test(host) ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^169\.254\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+  if (blocked) throw new Error("That address isn't allowed.");
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000);
+  let res: Response;
+  try {
+    res = await fetch(u.toString(), {
+      signal: controller.signal,
+      redirect: "follow",
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; FamilyRecipes/1.0; recipe import)",
+        Accept: "text/html,application/xhtml+xml",
+      },
+    });
+  } catch {
+    throw new Error("Couldn't reach that page. Check the link and try again.");
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!res.ok) {
+    throw new Error(`That page returned an error (${res.status}).`);
+  }
+  const ctype = res.headers.get("content-type") || "";
+  if (!ctype.includes("html") && !ctype.includes("xml")) {
+    throw new Error("That link doesn't point to a web page.");
+  }
+  const html = (await res.text()).slice(0, 3_000_000);
+  return parseRecipeFromHtml(html, u.toString());
+}
 
 type IngredientRowInput = {
   ingredient_id: string | null;
@@ -60,6 +116,7 @@ export async function createRecipe(formData: FormData) {
       category: String(formData.get("category") || "").trim() || null,
       instructions: steps,
       description: String(formData.get("notes") || "").trim() || null,
+      source_url: String(formData.get("source_url") || "").trim() || null,
     })
     .select("id")
     .single();

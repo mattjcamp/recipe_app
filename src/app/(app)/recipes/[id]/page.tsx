@@ -82,13 +82,6 @@ export default async function RecipeDetailPage({
         </p>
       )}
 
-      <ShareRecipe
-        recipeId={r.id}
-        initialPublished={r.published}
-        familySlug={familySlug}
-        recipeSlug={r.slug}
-      />
-
       {family && (
         <RecipePhoto
           recipeId={r.id}
@@ -121,6 +114,13 @@ export default async function RecipeDetailPage({
           <p className="whitespace-pre-wrap text-slate-700">{r.description}</p>
         </section>
       )}
+
+      <ShareRecipe
+        recipeId={r.id}
+        initialPublished={r.published}
+        familySlug={familySlug}
+        recipeSlug={r.slug}
+      />
     </div>
   );
 }

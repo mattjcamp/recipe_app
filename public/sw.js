@@ -42,8 +42,18 @@ self.addEventListener("activate", (event) => {
 // random filename. So we cache by the path alone (dropping the query) and serve
 // the cached bytes back no matter which token the page requests with. This is
 // what stops photos from re-downloading every visit and makes them work offline.
+//
+// IMPORTANT: only intercept *signed/public* reads (token in the URL). Do NOT
+// touch `/object/authenticated/...` requests: those are supabase-js
+// `.download()` calls (used by the backup feature) that authenticate with an
+// `Authorization` header. handleImage re-fetches from `request.url`, which
+// drops that header — so intercepting them would strip the auth and make every
+// download fail. Leaving them alone lets the browser send the header normally.
 function isStorageImage(url) {
-  return url.pathname.includes("/storage/v1/object/");
+  return (
+    url.pathname.includes("/storage/v1/object/") &&
+    !url.pathname.includes("/object/authenticated/")
+  );
 }
 
 async function trimImageCache(cache) {

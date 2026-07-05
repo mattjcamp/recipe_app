@@ -12,6 +12,7 @@ import {
   sync,
   toggleItem as storeToggle,
   moveItems as storeMove,
+  deleteItems as storeDelete,
 } from "@/lib/offline/store";
 
 function aisleSortKey(loc: Location | null): number {
@@ -241,6 +242,22 @@ export default function ListItems({
           className="mt-6 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
         >
           {moveLabel}
+        </button>
+      )}
+
+      {anyChecked && (
+        <button
+          onClick={() => {
+            const ids = items.filter((i) => i.is_checked).map((i) => i.id);
+            if (!window.confirm(`Delete ${ids.length} checked item${ids.length === 1 ? "" : "s"}?`))
+              return;
+            // optimistic removal; storeDelete persists locally + queues sync
+            setItems((c) => c.filter((i) => !i.is_checked));
+            void storeDelete(ids);
+          }}
+          className={`${moveTargetListId && moveLabel ? "mt-2" : "mt-6"} w-full rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50`}
+        >
+          Delete checked items
         </button>
       )}
     </div>

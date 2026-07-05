@@ -6,6 +6,7 @@ import { getCurrentFamily } from "@/lib/family";
 import { PHOTO_BUCKET, SIGNED_URL_TTL } from "@/lib/storage";
 import SimpleMarkdown from "@/components/SimpleMarkdown";
 import RecipePhoto from "./RecipePhoto";
+import AddToPlan from "./AddToPlan";
 import RecipeIngredients from "./RecipeIngredients";
 import ShareRecipe from "./ShareRecipe";
 
@@ -81,6 +82,8 @@ export default async function RecipeDetailPage({
           </a>
         </p>
       )}
+
+      {family && <AddToPlan recipeId={r.id} familyId={family.familyId} />}
 
       {family && (
         <RecipePhoto

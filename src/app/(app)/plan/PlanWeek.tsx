@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type Entry = {
@@ -41,22 +41,31 @@ export default function PlanWeek({
 }) {
   const supabase = createClient();
 
+  // Meals and their recipes are stateful so a day saved as a new meal shows up
+  // in the picker without a reload.
+  const [mealOpts, setMealOpts] = useState<Option[]>(meals);
+  const [mealRecipeRows, setMealRecipeRows] = useState(mealRecipes);
+
   // meal id -> its recipe ids (adding a meal expands into these recipes)
-  const recipesByMeal = new Map<string, string[]>();
-  for (const mr of mealRecipes) {
-    const arr = recipesByMeal.get(mr.meal_id) ?? [];
-    arr.push(mr.recipe_id);
-    recipesByMeal.set(mr.meal_id, arr);
-  }
+  const recipesByMeal = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const mr of mealRecipeRows) {
+      const arr = map.get(mr.meal_id) ?? [];
+      arr.push(mr.recipe_id);
+      map.set(mr.meal_id, arr);
+    }
+    return map;
+  }, [mealRecipeRows]);
+
   const [entries, setEntries] = useState<Entry[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const labelFor = useCallback(
     (kind: "meal" | "recipe", refId: string) =>
       (kind === "meal"
-        ? meals.find((m) => m.id === refId)?.name
+        ? mealOpts.find((m) => m.id === refId)?.name
         : recipes.find((r) => r.id === refId)?.name) ?? "(removed)",
-    [meals, recipes],
+    [mealOpts, recipes],
   );
 
   const load = useCallback(async () => {
@@ -164,7 +173,56 @@ export default function PlanWeek({
       setError(r1.error?.message ?? r2.error?.message ?? null);
   }
 
-  const noOptions = meals.length === 0 && recipes.length === 0;
+  // Snapshot a day's recipes as a reusable named meal (meals + meal_recipes).
+  async function saveDayAsMeal(dow: number, name: string): Promise<boolean> {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+
+    // Deduped recipe ids in display order (meal_recipes is unique per recipe).
+    const recipeIds = [
+      ...new Set(
+        dayEntries(dow)
+          .filter((e) => e.kind === "recipe")
+          .map((e) => e.refId),
+      ),
+    ];
+    if (recipeIds.length === 0) return false;
+
+    setError(null);
+    const { data: meal, error: mealErr } = await supabase
+      .from("meals")
+      .insert({ family_id: familyId, name: trimmed })
+      .select("id, name")
+      .single();
+    if (mealErr || !meal) {
+      setError(mealErr?.message ?? "Could not save meal.");
+      return false;
+    }
+
+    const rows = recipeIds.map((rid, i) => ({
+      meal_id: meal.id as string,
+      recipe_id: rid,
+      sort_order: i,
+    }));
+    const { error: mrErr } = await supabase.from("meal_recipes").insert(rows);
+    if (mrErr) {
+      setError(mrErr.message);
+      return false;
+    }
+
+    setMealOpts((m) =>
+      [...m, { id: meal.id as string, name: meal.name as string }].sort(
+        (a, b) => a.name.localeCompare(b.name),
+      ),
+    );
+    setMealRecipeRows((r) => [
+      ...r,
+      ...rows.map(({ meal_id, recipe_id }) => ({ meal_id, recipe_id })),
+    ]);
+    return true;
+  }
+
+  const noOptions = mealOpts.length === 0 && recipes.length === 0;
 
   return (
     <div>
@@ -249,16 +307,94 @@ export default function PlanWeek({
               {!noOptions && (
                 <DayAdder
                   dayName={name}
-                  meals={meals}
+                  meals={mealOpts}
                   recipes={recipes}
                   onAdd={(value) => addEntry(dow, value)}
                 />
+              )}
+
+              {list.some((e) => e.kind === "recipe") && (
+                <SaveDayAsMeal onSave={(n) => saveDayAsMeal(dow, n)} />
               )}
             </section>
           );
         })}
       </div>
     </div>
+  );
+}
+
+// Collapsed "save this day as a reusable meal" control: expands to a name
+// input, calls onSave, and shows a brief confirmation.
+function SaveDayAsMeal({
+  onSave,
+}: {
+  onSave: (name: string) => Promise<boolean>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim() || busy) return;
+    setBusy(true);
+    const ok = await onSave(name);
+    setBusy(false);
+    if (ok) {
+      setName("");
+      setOpen(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    }
+  }
+
+  if (saved) {
+    return (
+      <p className="mt-2 text-sm text-emerald-700">
+        Saved ✓ — find it under Family → Meals or in the picker above.
+      </p>
+    );
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="mt-2 text-sm text-slate-500 hover:text-emerald-700 hover:underline"
+      >
+        Save day as meal…
+      </button>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="mt-2 flex gap-2">
+      <input
+        value={name}
+        autoFocus
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Meal name (e.g. Taco Night)"
+        className="flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+      />
+      <button
+        disabled={busy || !name.trim()}
+        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+      >
+        {busy ? "…" : "Save"}
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setOpen(false);
+          setName("");
+        }}
+        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+      >
+        Cancel
+      </button>
+    </form>
   );
 }
 

@@ -163,6 +163,15 @@ export async function deleteItem(id: string): Promise<void> {
   void sync();
 }
 
+export async function deleteItems(ids: string[]): Promise<void> {
+  for (const id of ids) {
+    await idbDelete("items", id);
+    await enqueue({ kind: "delete", id });
+  }
+  emit();
+  void sync();
+}
+
 export async function moveItems(
   ids: string[],
   toListId: string,

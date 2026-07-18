@@ -47,6 +47,7 @@ export default async function RecipesPage() {
     category: r.category?.trim() || "",
     thumb: r.image_url ? thumbs[r.image_url] ?? null : null,
     ingredients: (ingredientsByRecipe.get(r.id) ?? []).join(" ").toLowerCase(),
+    pinned: r.is_pinned,
   }));
 
   return (

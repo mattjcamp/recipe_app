@@ -99,6 +99,7 @@ export interface Recipe {
   image_url: string | null;
   source_url: string | null;
   instructions: string; // markdown text
+  is_pinned: boolean; // pinned to the top of the recipe list
   published: boolean; // shared as a public web page
   slug: string | null; // URL slug, assigned on first publish
   created_at: string;

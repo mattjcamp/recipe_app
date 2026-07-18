@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 export type RecipeListItem = {
   id: string;
@@ -9,14 +10,23 @@ export type RecipeListItem = {
   category: string; // "" means uncategorized
   thumb: string | null;
   ingredients: string; // lowercased, space-joined ingredient names for search
+  pinned: boolean;
 };
 
-function RecipeCard({ r }: { r: RecipeListItem }) {
+function RecipeCard({
+  r,
+  pinned,
+  onTogglePin,
+}: {
+  r: RecipeListItem;
+  pinned: boolean;
+  onTogglePin: () => void;
+}) {
   return (
-    <li>
+    <li className="flex items-center rounded-lg border border-slate-200 bg-white hover:border-emerald-300">
       <Link
         href={`/recipes/${r.id}`}
-        className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 hover:border-emerald-300"
+        className="flex flex-1 items-center gap-3 p-3"
       >
         {r.thumb ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -32,6 +42,17 @@ function RecipeCard({ r }: { r: RecipeListItem }) {
         )}
         <p className="font-medium">{r.title}</p>
       </Link>
+      <button
+        type="button"
+        onClick={onTogglePin}
+        aria-label={pinned ? "Unpin recipe" : "Pin recipe"}
+        title={pinned ? "Unpin" : "Pin to top"}
+        className={`px-3 py-3 text-lg ${
+          pinned ? "" : "opacity-25 grayscale hover:opacity-60"
+        }`}
+      >
+        📌
+      </button>
     </li>
   );
 }
@@ -42,6 +63,26 @@ function RecipeCard({ r }: { r: RecipeListItem }) {
 export default function RecipeBrowser({ items }: { items: RecipeListItem[] }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
+  // Optimistic pin overrides (id -> pinned); falls back to the server value.
+  const [pins, setPins] = useState<Record<string, boolean>>({});
+  const [pinError, setPinError] = useState<string | null>(null);
+
+  const isPinned = (r: RecipeListItem) => pins[r.id] ?? r.pinned;
+
+  async function togglePin(r: RecipeListItem) {
+    const next = !isPinned(r);
+    setPins((p) => ({ ...p, [r.id]: next })); // optimistic
+    setPinError(null);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("recipes")
+      .update({ is_pinned: next })
+      .eq("id", r.id);
+    if (error) {
+      setPins((p) => ({ ...p, [r.id]: !next })); // revert
+      setPinError(error.message);
+    }
+  }
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -58,8 +99,13 @@ export default function RecipeBrowser({ items }: { items: RecipeListItem[] }) {
     });
   }, [items, query, category]);
 
+  // Pinned recipes surface in their own section at the top; the rest stay
+  // grouped by category.
+  const pinnedList = filtered.filter((r) => isPinned(r));
+
   const groups = new Map<string, RecipeListItem[]>();
   for (const r of filtered) {
+    if (isPinned(r)) continue;
     const key = r.category || "";
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(r);
@@ -93,10 +139,33 @@ export default function RecipeBrowser({ items }: { items: RecipeListItem[] }) {
         </select>
       </div>
 
+      {pinError && (
+        <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          {pinError}
+        </p>
+      )}
+
       {filtered.length === 0 ? (
         <p className="text-sm text-slate-500">No recipes match your filters.</p>
       ) : (
         <div className="flex flex-col gap-5">
+          {pinnedList.length > 0 && (
+            <section>
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-600">
+                📌 Pinned
+              </h2>
+              <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {pinnedList.map((r) => (
+                  <RecipeCard
+                    key={r.id}
+                    r={r}
+                    pinned
+                    onTogglePin={() => togglePin(r)}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
           {orderedKeys.map((key) => (
             <section key={key || "uncategorized"}>
               <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -104,7 +173,12 @@ export default function RecipeBrowser({ items }: { items: RecipeListItem[] }) {
               </h2>
               <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {groups.get(key)!.map((r) => (
-                  <RecipeCard key={r.id} r={r} />
+                  <RecipeCard
+                    key={r.id}
+                    r={r}
+                    pinned={false}
+                    onTogglePin={() => togglePin(r)}
+                  />
                 ))}
               </ul>
             </section>

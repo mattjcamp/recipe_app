@@ -44,8 +44,18 @@ export default async function ListDetail({
   const locations: Record<string, Location> = {};
   for (const l of (locData as Location[]) ?? []) locations[l.id] = l;
 
-  // Grocery lists can move purchased items to the pantry.
+  // Grocery lists can move purchased items to the pantry, and the add box
+  // surfaces pantry items so they can be moved back onto the list.
   const pantry = isGrocery ? await getOrCreatePantry() : null;
+  let pantryItems: GroceryListItem[] = [];
+  if (pantry) {
+    const { data } = await supabase
+      .from("grocery_list_items")
+      .select("*")
+      .eq("list_id", pantry.id)
+      .order("free_text", { ascending: true });
+    pantryItems = (data as GroceryListItem[]) ?? [];
+  }
 
   return (
     <div>
@@ -70,7 +80,12 @@ export default async function ListDetail({
         )}
       </div>
 
-      <AddItem listId={listId} catalog={(catalog as Ingredient[]) ?? []} />
+      <AddItem
+        listId={listId}
+        catalog={(catalog as Ingredient[]) ?? []}
+        pantryId={pantry?.id}
+        initialPantryItems={pantryItems}
+      />
 
       <ListItems
         listId={listId}

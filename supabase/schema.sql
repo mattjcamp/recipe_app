@@ -144,6 +144,7 @@ create table recipes (
   image_url    text,
   source_url   text,
   instructions text not null default '',     -- steps as markdown text
+  is_pinned    boolean not null default false, -- pinned to the top of the list
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now()
 );

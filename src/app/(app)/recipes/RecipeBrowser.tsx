@@ -1,8 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+
+// Remembers the selected category across navigations (viewing a recipe,
+// switching tabs) and app restarts.
+const CATEGORY_KEY = "recipes.category";
 
 export type RecipeListItem = {
   id: string;
@@ -63,6 +67,26 @@ function RecipeCard({
 export default function RecipeBrowser({ items }: { items: RecipeListItem[] }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
+
+  // Restore the last-selected category (only if it still exists).
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(CATEGORY_KEY);
+      if (saved && items.some((i) => i.category === saved)) setCategory(saved);
+    } catch {
+      // storage unavailable (private mode etc.) — start at "All categories"
+    }
+  }, [items]);
+
+  function changeCategory(value: string) {
+    setCategory(value);
+    try {
+      window.localStorage.setItem(CATEGORY_KEY, value);
+    } catch {
+      // best effort
+    }
+  }
+
   // Optimistic pin overrides (id -> pinned); falls back to the server value.
   const [pins, setPins] = useState<Record<string, boolean>>({});
   const [pinError, setPinError] = useState<string | null>(null);
@@ -127,7 +151,7 @@ export default function RecipeBrowser({ items }: { items: RecipeListItem[] }) {
         />
         <select
           value={category}
-          onChange={(e) => setCategory(e.target.value)}
+          onChange={(e) => changeCategory(e.target.value)}
           className="rounded-lg border border-slate-300 px-3 py-2 sm:w-56"
         >
           <option value="">All categories</option>

@@ -59,25 +59,15 @@ export default async function ListDetail({
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          {backHref && (
-            <Link href={backHref} className="text-sm text-slate-500">
-              ← Lists
-            </Link>
-          )}
-          <h1 className="mt-1 text-xl font-semibold">
-            {(list as GroceryList).name}
-          </h1>
-        </div>
-        {!backHref && (
-          <Link
-            href="/family/lists"
-            className="text-sm text-emerald-700 hover:underline"
-          >
-            Manage lists
+      <div className="mb-4">
+        {backHref && (
+          <Link href={backHref} className="text-sm text-slate-500">
+            ← Lists
           </Link>
         )}
+        <h1 className="mt-1 text-xl font-semibold">
+          {(list as GroceryList).name}
+        </h1>
       </div>
 
       <AddItem

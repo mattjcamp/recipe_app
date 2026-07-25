@@ -9,6 +9,7 @@ import {
   getLocations,
   getMemberName,
   cacheMemberName,
+  seedReference,
   updateItem,
 } from "@/lib/offline/store";
 import PhotoCapture from "@/components/PhotoCapture";
@@ -41,8 +42,23 @@ export default function ItemDetail({
       const online =
         typeof navigator === "undefined" || navigator.onLine;
 
-      const locs = await getLocations();
-      if (active) setLocations(locs);
+      // Locations (aisle picker): cached first so they show offline, then
+      // refreshed from the server when online. The cache is seeded here because
+      // nothing else populates it yet.
+      const cachedLocs = await getLocations();
+      if (active && cachedLocs.length) setLocations(cachedLocs);
+      if (online) {
+        const supabase = createClient();
+        const { data: locData } = await supabase
+          .from("locations")
+          .select("*")
+          .order("created_at", { ascending: true });
+        const freshLocs = (locData as Location[]) ?? [];
+        if (freshLocs.length) {
+          await seedReference(freshLocs, []);
+          if (active) setLocations(freshLocs);
+        }
+      }
 
       // Item: local cache first, fall back to the network when online.
       let local = await getItem(itemId);

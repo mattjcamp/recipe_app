@@ -1,10 +1,16 @@
 // Minimal promise-based IndexedDB wrapper (no dependencies).
-// Stores: items (grocery_list_items cache), locations, ingredients, outbox.
+// Stores: items (grocery_list_items cache), locations, ingredients, outbox,
+// members (user_id -> display_name, for showing who added an item offline).
 
 const DB_NAME = "recipe-app";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
-export type StoreName = "items" | "locations" | "ingredients" | "outbox";
+export type StoreName =
+  | "items"
+  | "locations"
+  | "ingredients"
+  | "outbox"
+  | "members";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -24,6 +30,8 @@ function openDB(): Promise<IDBDatabase> {
         db.createObjectStore("ingredients", { keyPath: "id" });
       if (!db.objectStoreNames.contains("outbox"))
         db.createObjectStore("outbox", { keyPath: "opId", autoIncrement: true });
+      if (!db.objectStoreNames.contains("members"))
+        db.createObjectStore("members", { keyPath: "user_id" });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);

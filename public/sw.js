@@ -8,7 +8,7 @@
 // Bump VERSION to force clients onto fresh page/static caches after a deploy.
 // The image cache is intentionally NOT versioned so cached photos survive
 // deploys (their contents never change — see the note on signed URLs below).
-const VERSION = "v3";
+const VERSION = "v4";
 const STATIC_CACHE = `static-${VERSION}`;
 const PAGE_CACHE = `pages-${VERSION}`;
 const IMAGE_CACHE = "images"; // durable across deploys
@@ -106,6 +106,38 @@ async function handleNavigate(request) {
   return res || (await caches.match(OFFLINE_URL)) || Response.error();
 }
 
+// Next.js client-side navigation fetches the target route's React Server
+// Component payload instead of a full HTML page. Those requests carry `RSC: 1`.
+// We cache the *navigation* payloads (not prefetches, which can be partial) with
+// stale-while-revalidate so returning to a route already visited works offline
+// and never hangs. `ignoreVary` is needed because RSC responses vary on router
+// headers we don't want to key on.
+function isNavigationRSC(request) {
+  return (
+    request.headers.get("RSC") === "1" &&
+    request.headers.get("Next-Router-Prefetch") !== "1"
+  );
+}
+
+async function handleRSC(request) {
+  const cache = await caches.open(PAGE_CACHE);
+  const cached = await cache.match(request, { ignoreVary: true });
+  const netPromise = fetch(request)
+    .then((res) => {
+      if (res && res.ok && res.type === "basic")
+        cache.put(request, res.clone());
+      return res;
+    })
+    .catch(() => null);
+
+  if (cached) {
+    netPromise; // refresh in the background
+    return cached;
+  }
+  const res = await netPromise;
+  return res || cached || Response.error();
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
@@ -123,6 +155,13 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     event.respondWith(handleNavigate(request));
+    return;
+  }
+
+  // Client-side navigation payloads (RSC): cache like pages so offline nav
+  // renders instead of hanging.
+  if (isNavigationRSC(request)) {
+    event.respondWith(handleRSC(request));
     return;
   }
 

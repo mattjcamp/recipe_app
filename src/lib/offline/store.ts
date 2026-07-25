@@ -54,6 +54,24 @@ async function currentUserId(): Promise<string | null> {
 export function getListItems(listId: string) {
   return idbGetByIndex<GroceryListItem>("items", "by_list", listId);
 }
+export function getItem(id: string) {
+  return idbGet<GroceryListItem>("items", id);
+}
+
+// Who-added display names, cached so the item detail can show them offline.
+export async function getMemberName(userId: string): Promise<string | null> {
+  const m = await idbGet<{ user_id: string; display_name: string | null }>(
+    "members",
+    userId,
+  );
+  return m?.display_name ?? null;
+}
+export async function cacheMemberName(
+  userId: string,
+  displayName: string | null,
+): Promise<void> {
+  await idbPut("members", { user_id: userId, display_name: displayName });
+}
 export function getLocations() {
   return idbGetAll<Location>("locations");
 }

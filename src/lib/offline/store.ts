@@ -35,6 +35,21 @@ function emit() {
   listeners.forEach((l) => l());
 }
 
+// The signed-in user's id, cached after the first lookup. Uses getSession()
+// (reads locally, so it works offline) so manual adds can record who added them.
+let cachedUserId: string | null | undefined;
+async function currentUserId(): Promise<string | null> {
+  if (cachedUserId !== undefined) return cachedUserId;
+  try {
+    const supabase = createClient();
+    const { data } = await supabase.auth.getSession();
+    cachedUserId = data.session?.user?.id ?? null;
+  } catch {
+    cachedUserId = null;
+  }
+  return cachedUserId;
+}
+
 // ---- reads ----------------------------------------------------------------
 export function getListItems(listId: string) {
   return idbGetByIndex<GroceryListItem>("items", "by_list", listId);
@@ -82,6 +97,8 @@ const FIELDS_FOR_INSERT: (keyof GroceryListItem)[] = [
   "image_path",
   "notes",
   "location_id",
+  "origin",
+  "added_by",
 ];
 
 function insertPayload(row: GroceryListItem): Partial<GroceryListItem> {
@@ -112,7 +129,8 @@ export async function addItem(
     notes: null,
     aisle: null,
     location_id: null,
-    added_by: null,
+    added_by: await currentUserId(),
+    origin: "manual",
     created_at: now,
     updated_at: now,
   };
@@ -175,9 +193,15 @@ export async function deleteItems(ids: string[]): Promise<void> {
 export async function moveItems(
   ids: string[],
   toListId: string,
+  origin?: GroceryListItem["origin"],
 ): Promise<void> {
+  const changes: Partial<GroceryListItem> = {
+    list_id: toListId,
+    is_checked: false,
+  };
+  if (origin) changes.origin = origin;
   for (const id of ids) {
-    await updateItem(id, { list_id: toListId, is_checked: false });
+    await updateItem(id, changes);
   }
 }
 

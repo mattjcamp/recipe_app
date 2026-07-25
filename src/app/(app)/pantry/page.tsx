@@ -60,6 +60,7 @@ export default async function PantryPage() {
         showStoreFilter={false}
         moveTargetListId={target?.id}
         moveLabel={target ? "Move checked → grocery list" : undefined}
+        moveOrigin="pantry"
       />
     </div>
   );

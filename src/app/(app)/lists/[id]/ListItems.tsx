@@ -28,6 +28,7 @@ export default function ListItems({
   showStoreFilter = true,
   moveTargetListId,
   moveLabel,
+  moveOrigin,
 }: {
   listId: string;
   initialItems: GroceryListItem[];
@@ -35,6 +36,7 @@ export default function ListItems({
   showStoreFilter?: boolean;
   moveTargetListId?: string;
   moveLabel?: string;
+  moveOrigin?: GroceryListItem["origin"];
 }) {
   const [items, setItems] = useState<GroceryListItem[]>(initialItems);
   const [store, setStore] = useState(""); // store filter ("" = all)
@@ -237,6 +239,7 @@ export default function ListItems({
             void storeMove(
               items.filter((i) => i.is_checked).map((i) => i.id),
               moveTargetListId,
+              moveOrigin,
             )
           }
           className="mt-6 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"

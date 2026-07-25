@@ -6,10 +6,11 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentFamily } from "@/lib/family";
 import { getOrCreatePantry } from "@/lib/pantry";
 import {
-  selectIngredientsToAdd,
+  planGroceryActions,
   type Candidate,
   type ExistingItem,
 } from "@/lib/planGrocery";
+import { parseQuantity } from "@/lib/quantity";
 import type { GroceryList } from "@/lib/database.types";
 
 // Gather every recipe in the week's plan, collect their ingredients, and add the
@@ -66,7 +67,7 @@ export async function addPlanToGroceryList() {
   // 3. Recipe ingredients + the catalog details for inheriting unit/location.
   const { data: recIngs } = await supabase
     .from("recipe_ingredients")
-    .select("ingredient_id, free_text, unit")
+    .select("ingredient_id, free_text, unit, quantity")
     .eq("is_heading", false) // headings aren't shopping items
     .in("recipe_id", [...recipeIds]);
 
@@ -98,34 +99,84 @@ export async function addPlanToGroceryList() {
         name: r.free_text ?? "",
         unit: r.unit ?? cat?.default_unit ?? null,
         location_id: cat?.location_id ?? null,
+        // Reflect the recipe amount; fall back to 1 when it's missing or not
+        // a plain number (e.g. "to taste").
+        quantity: parseQuantity(r.quantity ?? "") ?? 1,
       };
     });
 
-  // 4. Existing items to skip: target grocery list + pantry.
-  const listIds = [target!.id, ...(pantry ? [pantry.id] : [])];
+  // 4. Existing items on the target grocery list + the pantry, tagged by source
+  //    so the planner can move pantry items and bump grocery items.
+  const pantryId = pantry?.id ?? null;
+  const listIds = [target!.id, ...(pantryId ? [pantryId] : [])];
   const { data: existingRows } = await supabase
     .from("grocery_list_items")
-    .select("ingredient_id, free_text")
+    .select("id, list_id, ingredient_id, free_text, quantity")
     .in("list_id", listIds);
-  const existing = (existingRows as ExistingItem[]) ?? [];
+  const existing: ExistingItem[] = (existingRows ?? []).map((r) => ({
+    id: r.id,
+    ingredient_id: r.ingredient_id,
+    free_text: r.free_text,
+    quantity: r.quantity,
+    source: r.list_id === pantryId ? "pantry" : "grocery",
+  }));
 
-  // 5. Pick what to add and insert.
-  const toAdd = selectIngredientsToAdd(candidates, existing);
-  if (toAdd.length > 0) {
+  // 5. Plan pantry moves, quantity bumps, and new inserts.
+  const { moves, increments, inserts } = planGroceryActions(
+    candidates,
+    existing,
+  );
+
+  // Move matching pantry items onto the grocery list, setting the needed qty.
+  // Tag them as pantry-sourced and credit whoever ran the plan.
+  await Promise.all(
+    moves.map((m) =>
+      supabase
+        .from("grocery_list_items")
+        .update({
+          list_id: target!.id,
+          quantity: m.quantity,
+          is_checked: false,
+          origin: "pantry",
+          added_by: user?.id ?? null,
+        })
+        .eq("id", m.id),
+    ),
+  );
+
+  // Bump the quantity on items already on the grocery list.
+  await Promise.all(
+    increments.map((inc) =>
+      supabase
+        .from("grocery_list_items")
+        .update({ quantity: inc.quantity })
+        .eq("id", inc.id),
+    ),
+  );
+
+  // Insert brand-new items with the recipe quantity.
+  if (inserts.length > 0) {
     await supabase.from("grocery_list_items").insert(
-      toAdd.map((c) => ({
+      inserts.map((c) => ({
         list_id: target!.id,
         free_text: c.name,
         ingredient_id: c.ingredient_id,
         unit: c.unit,
         location_id: c.location_id,
+        quantity: c.quantity,
         added_by: user?.id ?? null,
+        origin: "recipe",
       })),
     );
   }
 
+  const affected = moves.length + increments.length + inserts.length;
   revalidatePath("/lists");
+  revalidatePath("/pantry");
   redirect(
-    "/plan?added=" + String(toAdd.length) + "&list=" + encodeURIComponent(target!.name),
+    "/plan?added=" +
+      String(affected) +
+      "&list=" +
+      encodeURIComponent(target!.name),
   );
 }

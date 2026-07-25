@@ -41,12 +41,47 @@ export default async function ItemDetailPage({
     .order("created_at", { ascending: true });
   const locations = (locData as Location[]) ?? [];
 
+  // Resolve who added the item (profiles aren't FK-linked, so fetch by id).
+  let addedByName: string | null = null;
+  if (it.added_by) {
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("user_id", it.added_by)
+      .maybeSingle();
+    addedByName =
+      (prof as { display_name: string | null } | null)?.display_name ?? null;
+  }
+
+  const addedOn = new Date(it.created_at).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+
   return (
     <div>
       <Link href={`/lists/${listId}`} className="text-sm text-slate-500">
         ← Back to list
       </Link>
       <h1 className="mb-4 mt-1 text-xl font-semibold">Item details</h1>
+
+      <section className="mb-5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+        <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          History
+        </h2>
+        <p>
+          {addedByName
+            ? `Added by ${addedByName} on ${addedOn}.`
+            : it.added_by
+              ? `Added by a family member on ${addedOn}.`
+              : `Added on ${addedOn}.`}
+        </p>
+        {it.origin === "pantry" && <p>Moved over from the Pantry.</p>}
+        {it.origin === "recipe" && (
+          <p>Added from a recipe in the meal plan.</p>
+        )}
+      </section>
 
       {family && (
         <div className="mb-5">

@@ -142,6 +142,7 @@ export interface GroceryListItem {
   aisle: string | null;
   location_id: string | null;
   added_by: string | null;
+  origin: "manual" | "recipe" | "pantry";
   created_at: string;
   updated_at: string;
 }

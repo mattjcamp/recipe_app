@@ -89,7 +89,7 @@ export default function AddItem({
   // Move an existing pantry item onto this list (removes it from the pantry).
   function takeFromPantry(item: GroceryListItem) {
     setPantryItems((c) => c.filter((i) => i.id !== item.id)); // optimistic
-    void storeMove([item.id], listId);
+    void storeMove([item.id], listId, "pantry");
     setText("");
     setOpen(false);
     inputRef.current?.focus();

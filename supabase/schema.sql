@@ -195,6 +195,9 @@ create table grocery_list_items (
   aisle         text,                       -- (legacy free-text; superseded by location_id)
   location_id   uuid references locations(id) on delete set null,
   added_by      uuid references auth.users(id) on delete set null,
+  -- how the item got onto the list: manually added, added from a recipe via the
+  -- meal plan, or moved over from the pantry.
+  origin        text not null default 'manual' check (origin in ('manual','recipe','pantry')),
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now(),
   check (ingredient_id is not null or free_text is not null)

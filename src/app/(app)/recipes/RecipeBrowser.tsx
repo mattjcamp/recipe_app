@@ -14,8 +14,8 @@ import {
   cachePhotoUrls,
   reconcileRecipeIngredients,
   reconcileRecipes,
-  warmRecipeRoutes,
 } from "@/lib/offline/recipes";
+import { warmRoutes } from "@/lib/offline/warm";
 
 // Remembers the selected category across navigations (viewing a recipe,
 // switching tabs) and app restarts.
@@ -152,7 +152,7 @@ export default function RecipeBrowser({
         if (snap && active) {
           setItems(toListItems(snap.recipes, snap.ingredients, snap.thumbs));
           // Cache the detail routes themselves, in the background.
-          void warmRecipeRoutes(snap.recipes.map((r) => r.id));
+          warmRoutes(snap.recipes.map((r) => `/recipes/${r.id}`));
         }
       }
     })();

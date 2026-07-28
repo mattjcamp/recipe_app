@@ -15,14 +15,74 @@ const IMAGE_CACHE = "images"; // durable across deploys
 const OFFLINE_URL = "/offline.html";
 const MAX_IMAGES = 400; // rough cap to keep storage bounded
 
+// The tabs that work without a connection. Bumping VERSION rotates PAGE_CACHE,
+// which would otherwise leave these routes uncached — and an offline user
+// stranded on offline.html with dead links. So they're re-warmed on install.
+const CORE_ROUTES = ["/lists", "/pantry", "/recipes"];
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches
-      .open(STATIC_CACHE)
-      .then((c) => c.add(OFFLINE_URL))
-      .then(() => self.skipWaiting()),
+    (async () => {
+      const staticCache = await caches.open(STATIC_CACHE);
+      await staticCache.add(OFFLINE_URL);
+      await warmRoutes(CORE_ROUTES); // best effort; never blocks activation
+      await self.skipWaiting();
+    })(),
   );
 });
+
+// The page can ask for extra routes to be cached ahead of time — the recipe
+// list does this for every recipe's detail route. Warming lives here rather
+// than in the page so the cache names stay private to the worker.
+self.addEventListener("message", (event) => {
+  const data = event.data;
+  if (data && data.type === "warm-routes" && Array.isArray(data.routes)) {
+    event.waitUntil(warmRoutes(data.routes));
+  }
+});
+
+// Cache a route's HTML document *and* its React Server Component payload, so
+// both a cold launch and an in-app navigation work offline. The two live under
+// different keys ("/x" and "/x?_rsc=warm") so they can't be confused for each
+// other. Already-cached routes are skipped, and the first network failure
+// stops the run (we've gone offline; there's nothing left to warm).
+async function warmRoutes(routes) {
+  const cache = await caches.open(PAGE_CACHE);
+  const queue = [...routes];
+  let stopped = false;
+
+  async function worker() {
+    for (let route = queue.shift(); route; route = queue.shift()) {
+      if (stopped) return;
+      const rscKey = `${route}?_rsc=warm`;
+      try {
+        if (!(await cache.match(route))) {
+          const doc = await fetch(route, { credentials: "same-origin" });
+          if (isCacheableWarm(doc) && isHtml(doc)) await cache.put(route, doc);
+        }
+        if (!(await cache.match(rscKey, { ignoreVary: true }))) {
+          const rsc = await fetch(route, {
+            credentials: "same-origin",
+            headers: { RSC: "1" },
+          });
+          if (isCacheableWarm(rsc) && !isHtml(rsc)) await cache.put(rscKey, rsc);
+        }
+      } catch {
+        stopped = true; // offline
+        return;
+      }
+    }
+  }
+
+  // Low concurrency so warming never competes with what the user is doing.
+  await Promise.all([worker(), worker(), worker()]);
+}
+
+// `redirected` catches a signed-out user being bounced to /login — caching that
+// under /lists would show the login page offline forever.
+function isCacheableWarm(res) {
+  return res && res.ok && res.type === "basic" && !res.redirected;
+}
 
 self.addEventListener("activate", (event) => {
   const keep = new Set([STATIC_CACHE, PAGE_CACHE, IMAGE_CACHE]);

@@ -1,8 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import type { Recipe, RecipeIngredient } from "@/lib/database.types";
+import { useOnline } from "@/lib/useOnline";
+import {
+  cacheRecipe,
+  fetchAndCacheCookbook,
+  getAllCachedRecipeIngredients,
+  getCachedPhotoUrls,
+  getCachedRecipes,
+  cachePhotoUrls,
+  reconcileRecipeIngredients,
+  reconcileRecipes,
+  warmRecipeRoutes,
+} from "@/lib/offline/recipes";
 
 // Remembers the selected category across navigations (viewing a recipe,
 // switching tabs) and app restarts.
@@ -17,13 +30,38 @@ export type RecipeListItem = {
   pinned: boolean;
 };
 
+// Fold the three cached tables into the flat shape the list renders from.
+function toListItems(
+  recipes: Recipe[],
+  ingredients: RecipeIngredient[],
+  thumbs: Record<string, string>,
+): RecipeListItem[] {
+  const byRecipe = new Map<string, string[]>();
+  for (const row of ingredients) {
+    if (row.is_heading || !row.free_text) continue;
+    const arr = byRecipe.get(row.recipe_id) ?? [];
+    arr.push(row.free_text);
+    byRecipe.set(row.recipe_id, arr);
+  }
+  return recipes.map((r) => ({
+    id: r.id,
+    title: r.title,
+    category: r.category?.trim() || "",
+    thumb: r.image_url ? thumbs[r.image_url] ?? null : null,
+    ingredients: (byRecipe.get(r.id) ?? []).join(" ").toLowerCase(),
+    pinned: r.is_pinned,
+  }));
+}
+
 function RecipeCard({
   r,
   pinned,
+  canPin,
   onTogglePin,
 }: {
   r: RecipeListItem;
   pinned: boolean;
+  canPin: boolean;
   onTogglePin: () => void;
 }) {
   return (
@@ -49,9 +87,16 @@ function RecipeCard({
       <button
         type="button"
         onClick={onTogglePin}
+        disabled={!canPin}
         aria-label={pinned ? "Unpin recipe" : "Pin recipe"}
-        title={pinned ? "Unpin" : "Pin to top"}
-        className={`px-3 py-3 text-lg ${
+        title={
+          canPin
+            ? pinned
+              ? "Unpin"
+              : "Pin to top"
+            : "Pinning needs a connection"
+        }
+        className={`px-3 py-3 text-lg disabled:cursor-not-allowed ${
           pinned ? "" : "opacity-25 grayscale hover:opacity-60"
         }`}
       >
@@ -61,15 +106,65 @@ function RecipeCard({
   );
 }
 
-// Client-side filtering for the recipe list: a free-text search across titles
-// and ingredient names, plus a category dropdown. Results stay grouped by
-// category, matching the server-rendered layout.
-export default function RecipeBrowser({ items }: { items: RecipeListItem[] }) {
+// Offline-first recipe list. Renders from the local cookbook cache so the tab
+// opens instantly with no connection, then mirrors the server's copy whenever
+// one is available. Filtering (free-text search across titles and ingredient
+// names, plus a category dropdown) is entirely client-side.
+export default function RecipeBrowser({
+  initialRecipes,
+  initialIngredients,
+  initialThumbs,
+}: {
+  initialRecipes: Recipe[];
+  initialIngredients: RecipeIngredient[];
+  initialThumbs: Record<string, string>;
+}) {
+  const online = useOnline();
+  // undefined = still reading the cache; [] = genuinely empty cookbook.
+  const [items, setItems] = useState<RecipeListItem[] | undefined>(undefined);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
 
+  useEffect(() => {
+    let active = true;
+
+    (async () => {
+      // 1. Local cache first — this is the path that works offline.
+      let recipes = await getCachedRecipes();
+      let ings = await getAllCachedRecipeIngredients();
+      let thumbs = await getCachedPhotoUrls();
+
+      // 2. Nothing cached yet (first ever visit): seed from the server render.
+      if (recipes.length === 0 && initialRecipes.length > 0) {
+        await reconcileRecipes(initialRecipes);
+        await reconcileRecipeIngredients(initialIngredients);
+        await cachePhotoUrls(initialThumbs);
+        recipes = initialRecipes;
+        ings = initialIngredients;
+        thumbs = { ...thumbs, ...initialThumbs };
+      }
+      if (active) setItems(toListItems(recipes, ings, thumbs));
+
+      // 3. Online: mirror the whole cookbook so every detail screen is
+      //    readable later without a connection.
+      if (typeof navigator !== "undefined" && navigator.onLine) {
+        const snap = await fetchAndCacheCookbook();
+        if (snap && active) {
+          setItems(toListItems(snap.recipes, snap.ingredients, snap.thumbs));
+          // Cache the detail routes themselves, in the background.
+          void warmRecipeRoutes(snap.recipes.map((r) => r.id));
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [initialRecipes, initialIngredients, initialThumbs]);
+
   // Restore the last-selected category (only if it still exists).
   useEffect(() => {
+    if (!items) return;
     try {
       const saved = window.localStorage.getItem(CATEGORY_KEY);
       if (saved && items.some((i) => i.category === saved)) setCategory(saved);
@@ -87,12 +182,17 @@ export default function RecipeBrowser({ items }: { items: RecipeListItem[] }) {
     }
   }
 
-  // Optimistic pin overrides (id -> pinned); falls back to the server value.
+  // Optimistic pin overrides (id -> pinned); falls back to the cached value.
   const [pins, setPins] = useState<Record<string, boolean>>({});
   const [pinError, setPinError] = useState<string | null>(null);
 
-  const isPinned = (r: RecipeListItem) => pins[r.id] ?? r.pinned;
+  const isPinned = useCallback(
+    (r: RecipeListItem) => pins[r.id] ?? r.pinned,
+    [pins],
+  );
 
+  // Pinning is a write, so it stays online-only (the cookbook cache is
+  // read-only by design — nothing here queues into the outbox).
   async function togglePin(r: RecipeListItem) {
     const next = !isPinned(r);
     setPins((p) => ({ ...p, [r.id]: next })); // optimistic
@@ -105,23 +205,30 @@ export default function RecipeBrowser({ items }: { items: RecipeListItem[] }) {
     if (error) {
       setPins((p) => ({ ...p, [r.id]: !next })); // revert
       setPinError(error.message);
+      return;
     }
+    // Keep the offline copy in step so a reload shows the same pins.
+    const cached = await getCachedRecipes();
+    const row = cached.find((c) => c.id === r.id);
+    if (row) await cacheRecipe({ ...row, is_pinned: next });
   }
+
+  const list = useMemo(() => items ?? [], [items]);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
-    for (const it of items) if (it.category) set.add(it.category);
+    for (const it of list) if (it.category) set.add(it.category);
     return [...set].sort((a, b) => a.localeCompare(b));
-  }, [items]);
+  }, [list]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return items.filter((it) => {
+    return list.filter((it) => {
       if (category && it.category !== category) return false;
       if (!q) return true;
       return it.title.toLowerCase().includes(q) || it.ingredients.includes(q);
     });
-  }, [items, query, category]);
+  }, [list, query, category]);
 
   // Pinned recipes surface in their own section at the top; the rest stay
   // grouped by category.
@@ -142,72 +249,112 @@ export default function RecipeBrowser({ items }: { items: RecipeListItem[] }) {
 
   return (
     <div>
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search recipes or ingredients…"
-          className="w-full rounded-lg border border-slate-300 px-3 py-2"
-        />
-        <select
-          value={category}
-          onChange={(e) => changeCategory(e.target.value)}
-          className="rounded-lg border border-slate-300 px-3 py-2 sm:w-56"
-        >
-          <option value="">All categories</option>
-          {categories.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Recipes</h1>
+        {online ? (
+          <div className="flex items-center gap-2">
+            <Link
+              href="/recipes/import"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Import
+            </Link>
+            <Link
+              href="/recipes/new"
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+            >
+              + New
+            </Link>
+          </div>
+        ) : (
+          <span className="text-xs text-slate-400">
+            Offline · viewing saved copy
+          </span>
+        )}
       </div>
 
-      {pinError && (
-        <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          {pinError}
+      {items === undefined ? (
+        <p className="text-sm text-slate-500">Loading…</p>
+      ) : list.length === 0 ? (
+        <p className="text-sm text-slate-500">
+          {online
+            ? "No recipes yet. Add your family favourites."
+            : "No recipes saved for offline use yet. Reconnect to load them."}
         </p>
-      )}
-
-      {filtered.length === 0 ? (
-        <p className="text-sm text-slate-500">No recipes match your filters.</p>
       ) : (
-        <div className="flex flex-col gap-5">
-          {pinnedList.length > 0 && (
-            <section>
-              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-600">
-                📌 Pinned
-              </h2>
-              <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {pinnedList.map((r) => (
-                  <RecipeCard
-                    key={r.id}
-                    r={r}
-                    pinned
-                    onTogglePin={() => togglePin(r)}
-                  />
-                ))}
-              </ul>
-            </section>
+        <>
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search recipes or ingredients…"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2"
+            />
+            <select
+              value={category}
+              onChange={(e) => changeCategory(e.target.value)}
+              className="rounded-lg border border-slate-300 px-3 py-2 sm:w-56"
+            >
+              <option value="">All categories</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {pinError && (
+            <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+              {pinError}
+            </p>
           )}
-          {orderedKeys.map((key) => (
-            <section key={key || "uncategorized"}>
-              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                {key || "Uncategorized"}
-              </h2>
-              <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {groups.get(key)!.map((r) => (
-                  <RecipeCard
-                    key={r.id}
-                    r={r}
-                    pinned={false}
-                    onTogglePin={() => togglePin(r)}
-                  />
-                ))}
-              </ul>
-            </section>
-          ))}
-        </div>
+
+          {filtered.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              No recipes match your filters.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-5">
+              {pinnedList.length > 0 && (
+                <section>
+                  <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-600">
+                    📌 Pinned
+                  </h2>
+                  <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {pinnedList.map((r) => (
+                      <RecipeCard
+                        key={r.id}
+                        r={r}
+                        pinned
+                        canPin={online}
+                        onTogglePin={() => togglePin(r)}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              )}
+              {orderedKeys.map((key) => (
+                <section key={key || "uncategorized"}>
+                  <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    {key || "Uncategorized"}
+                  </h2>
+                  <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {groups.get(key)!.map((r) => (
+                      <RecipeCard
+                        key={r.id}
+                        r={r}
+                        pinned={false}
+                        canPin={online}
+                        onTogglePin={() => togglePin(r)}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

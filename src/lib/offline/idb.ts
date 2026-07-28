@@ -1,16 +1,21 @@
 // Minimal promise-based IndexedDB wrapper (no dependencies).
 // Stores: items (grocery_list_items cache), locations, ingredients, outbox,
-// members (user_id -> display_name, for showing who added an item offline).
+// members (user_id -> display_name, for showing who added an item offline),
+// recipes + recipe_ingredients (read-only offline cookbook), photos
+// (storage path -> last known signed URL, so cached photo bytes still resolve).
 
 const DB_NAME = "recipe-app";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export type StoreName =
   | "items"
   | "locations"
   | "ingredients"
   | "outbox"
-  | "members";
+  | "members"
+  | "recipes"
+  | "recipe_ingredients"
+  | "photos";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -32,8 +37,23 @@ function openDB(): Promise<IDBDatabase> {
         db.createObjectStore("outbox", { keyPath: "opId", autoIncrement: true });
       if (!db.objectStoreNames.contains("members"))
         db.createObjectStore("members", { keyPath: "user_id" });
+      if (!db.objectStoreNames.contains("recipes"))
+        db.createObjectStore("recipes", { keyPath: "id" });
+      if (!db.objectStoreNames.contains("recipe_ingredients")) {
+        const s = db.createObjectStore("recipe_ingredients", { keyPath: "id" });
+        s.createIndex("by_recipe", "recipe_id");
+      }
+      if (!db.objectStoreNames.contains("photos"))
+        db.createObjectStore("photos", { keyPath: "path" });
     };
-    req.onsuccess = () => resolve(req.result);
+    // Another tab still holding an older version open would block the upgrade
+    // forever (every read would hang, including the shopping list). Closing on
+    // `versionchange` lets the newer tab through.
+    req.onsuccess = () => {
+      const db = req.result;
+      db.onversionchange = () => db.close();
+      resolve(db);
+    };
     req.onerror = () => reject(req.error);
   });
   return dbPromise;
@@ -104,6 +124,22 @@ export async function idbDelete(
   const db = await openDB();
   const tx = db.transaction(store, "readwrite");
   tx.objectStore(store).delete(key);
+  return txDone(tx);
+}
+
+// Delete every row in `store` whose key is not in `keepIds`. Used to drop
+// records that were removed on another device.
+export async function idbReconcileStore(
+  store: StoreName,
+  keepIds: Set<string>,
+): Promise<void> {
+  const db = await openDB();
+  const tx = db.transaction(store, "readwrite");
+  const os = tx.objectStore(store);
+  const keys = await reqP<IDBValidKey[]>(os.getAllKeys());
+  for (const k of keys) {
+    if (typeof k === "string" && !keepIds.has(k)) os.delete(k);
+  }
   return txDone(tx);
 }
 

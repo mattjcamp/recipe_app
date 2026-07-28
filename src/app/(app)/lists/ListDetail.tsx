@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrCreatePantry } from "@/lib/pantry";
@@ -12,13 +11,7 @@ import AddItem from "./[id]/AddItem";
 import ListItems from "./[id]/ListItems";
 
 // Shared list view used by both the Lists tab (favorite) and /lists/[id].
-export default async function ListDetail({
-  listId,
-  backHref,
-}: {
-  listId: string;
-  backHref?: string;
-}) {
+export default async function ListDetail({ listId }: { listId: string }) {
   const supabase = await createClient();
 
   const { data: list } = await supabase
@@ -60,12 +53,7 @@ export default async function ListDetail({
   return (
     <div>
       <div className="mb-4">
-        {backHref && (
-          <Link href={backHref} className="text-sm text-slate-500">
-            ← Lists
-          </Link>
-        )}
-        <h1 className="mt-1 text-xl font-semibold">
+        <h1 className="text-xl font-semibold">
           {(list as GroceryList).name}
         </h1>
       </div>

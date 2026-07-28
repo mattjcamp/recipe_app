@@ -8,7 +8,7 @@
 // Bump VERSION to force clients onto fresh page/static caches after a deploy.
 // The image cache is intentionally NOT versioned so cached photos survive
 // deploys (their contents never change — see the note on signed URLs below).
-const VERSION = "v4";
+const VERSION = "v5";
 const STATIC_CACHE = `static-${VERSION}`;
 const PAGE_CACHE = `pages-${VERSION}`;
 const IMAGE_CACHE = "images"; // durable across deploys
@@ -88,9 +88,16 @@ async function handleImage(request) {
 // Pages: serve from cache immediately when available, and refresh in the
 // background for next time (stale-while-revalidate). Falls back to the network
 // (then the offline page) when nothing is cached yet.
+function isHtml(res) {
+  return (res.headers.get("content-type") || "").includes("text/html");
+}
+
 async function handleNavigate(request) {
   const cache = await caches.open(PAGE_CACHE);
-  const cached = await cache.match(request);
+  // Guard against serving an RSC flight payload as a document: the same URL can
+  // hold both an HTML entry and (from route warming) a `text/x-component` one.
+  const hit = await cache.match(request);
+  const cached = hit && isHtml(hit) ? hit : undefined;
   const netPromise = fetch(request)
     .then((res) => {
       if (res && res.ok && res.type === "basic") cache.put(request, res.clone());
@@ -135,7 +142,17 @@ async function handleRSC(request) {
     return cached;
   }
   const res = await netPromise;
-  return res || cached || Response.error();
+  if (res) return res;
+
+  // Offline with no exact hit. Next appends a per-build `_rsc=<hash>` cache
+  // buster, so a payload warmed ahead of time (see warmRecipeRoutes, which
+  // uses `?_rsc=warm`) is stored under a different key. Retry ignoring the
+  // query string, skipping any HTML entry cached for the same route.
+  const loose = await cache.matchAll(request, {
+    ignoreVary: true,
+    ignoreSearch: true,
+  });
+  return loose.find((res) => !isHtml(res)) || Response.error();
 }
 
 self.addEventListener("fetch", (event) => {

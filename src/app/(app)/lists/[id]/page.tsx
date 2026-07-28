@@ -6,5 +6,5 @@ export default async function ListDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  return <ListDetail listId={id} backHref="/family/lists" />;
+  return <ListDetail listId={id} />;
 }

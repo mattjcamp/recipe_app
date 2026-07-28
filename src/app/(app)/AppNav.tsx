@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useOnline } from "@/lib/useOnline";
 
 type LinkDef = {
   href: string;
@@ -11,35 +12,20 @@ type LinkDef = {
   offlineOk: boolean;
 };
 
-// Lists & Pantry are local-first (work offline); Recipes & Family need a
-// connection, so they're disabled when offline.
+// Lists, Pantry and Recipes read from a local cache, so they work offline
+// (Recipes read-only). Plan & Family need a connection and are disabled.
 const LINKS: LinkDef[] = [
   { href: "/lists", label: "Lists", icon: "🛒", offlineOk: true },
   { href: "/pantry", label: "Pantry", icon: "🥫", offlineOk: true },
   { href: "/plan", label: "Plan", icon: "📅", offlineOk: false },
-  { href: "/recipes", label: "Recipes", icon: "📖", offlineOk: false },
+  { href: "/recipes", label: "Recipes", icon: "📖", offlineOk: true },
   { href: "/family", label: "Family", icon: "👪", offlineOk: false },
 ];
-
-function useOffline() {
-  const [offline, setOffline] = useState(false);
-  useEffect(() => {
-    const update = () => setOffline(!navigator.onLine);
-    update();
-    window.addEventListener("online", update);
-    window.addEventListener("offline", update);
-    return () => {
-      window.removeEventListener("online", update);
-      window.removeEventListener("offline", update);
-    };
-  }, []);
-  return offline;
-}
 
 // Bottom tab bar on desktop; top hamburger menu on phones.
 export default function AppNav({ variant }: { variant: "mobile" | "desktop" }) {
   const pathname = usePathname();
-  const offline = useOffline();
+  const offline = !useOnline();
   const [open, setOpen] = useState(false);
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");

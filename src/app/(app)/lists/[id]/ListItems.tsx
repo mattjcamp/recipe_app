@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { GroceryListItem, Location } from "@/lib/database.types";
 import { idbBulkPut, idbPut, idbDelete } from "@/lib/offline/idb";
@@ -14,6 +14,7 @@ import {
   moveItems as storeMove,
   deleteItems as storeDelete,
 } from "@/lib/offline/store";
+import { warmRoutes } from "@/lib/offline/warm";
 
 function aisleSortKey(loc: Location | null): number {
   if (!loc) return Number.POSITIVE_INFINITY;
@@ -41,9 +42,31 @@ export default function ListItems({
   const [items, setItems] = useState<GroceryListItem[]>(initialItems);
   const [store, setStore] = useState(""); // store filter ("" = all)
 
+  // Item detail routes already asked for this session, so adding or checking
+  // things off doesn't re-ask on every keystroke.
+  const warmed = useRef(new Set<string>());
+
+  // Cache each item's detail route so tapping an item works offline. The item
+  // data is already local; without a cached page payload for the URL the
+  // router has nothing to render and falls through to the offline page.
+  const warmItems = useCallback(
+    (rows: GroceryListItem[]) => {
+      if (typeof navigator === "undefined" || !navigator.onLine) return;
+      const fresh = rows
+        .map((i) => `/lists/${listId}/items/${i.id}`)
+        .filter((r) => !warmed.current.has(r));
+      if (fresh.length === 0) return;
+      for (const r of fresh) warmed.current.add(r);
+      warmRoutes(fresh);
+    },
+    [listId],
+  );
+
   const reload = useCallback(async () => {
-    setItems(await getListItems(listId));
-  }, [listId]);
+    const next = await getListItems(listId);
+    setItems(next);
+    warmItems(next); // covers items added here or synced from another device
+  }, [listId, warmItems]);
 
   // Local-first load: read IndexedDB immediately (works offline), then if
   // online drain the outbox and reconcile with the server.
@@ -66,8 +89,12 @@ export default function ListItems({
           .eq("list_id", listId);
         if (data) {
           await reconcileListItems(listId, data as GroceryListItem[]);
-          if (active) setItems(await getListItems(listId));
+          local = await getListItems(listId);
+          if (active) setItems(local);
         }
+
+        warmRoutes([`/lists/${listId}`]);
+        warmItems(local);
       }
     })();
 
@@ -78,7 +105,7 @@ export default function ListItems({
       active = false;
       unsub();
     };
-  }, [listId, initialItems, reload]);
+  }, [listId, initialItems, reload, warmItems]);
 
   // Realtime: mirror other devices' changes into the local cache.
   useEffect(() => {

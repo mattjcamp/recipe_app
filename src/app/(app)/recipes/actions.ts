@@ -6,18 +6,28 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentFamily } from "@/lib/family";
 import { parseRecipeFromHtml, type ParsedRecipe } from "@/lib/recipeImport";
 
+// Result of an import attempt.
+//
+// This is returned rather than thrown: Next.js redacts server action error
+// messages in production, so a thrown Error would reach the user as a generic
+// "an error occurred". `canPaste` tells the UI whether the failure is one the
+// paste-the-page fallback can work around.
+export type ImportResult =
+  | { ok: true; recipe: ParsedRecipe }
+  | { ok: false; message: string; canPaste: boolean };
+
 // Fetch a web page and extract a recipe from it (schema.org JSON-LD, with a
 // title-only fallback). Returns parsed fields for the user to review — it does
 // NOT save anything.
-export async function importRecipeFromUrl(rawUrl: string): Promise<ParsedRecipe> {
+export async function importRecipeFromUrl(rawUrl: string): Promise<ImportResult> {
   let u: URL;
   try {
     u = new URL(rawUrl.trim());
   } catch {
-    throw new Error("That doesn't look like a valid URL.");
+    return { ok: false, message: "That doesn't look like a valid URL.", canPaste: false };
   }
   if (u.protocol !== "http:" && u.protocol !== "https:") {
-    throw new Error("Only http(s) links are supported.");
+    return { ok: false, message: "Only http(s) links are supported.", canPaste: false };
   }
   const host = u.hostname.toLowerCase();
   const blocked =
@@ -30,7 +40,9 @@ export async function importRecipeFromUrl(rawUrl: string): Promise<ParsedRecipe>
     /^192\.168\./.test(host) ||
     /^169\.254\./.test(host) ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(host);
-  if (blocked) throw new Error("That address isn't allowed.");
+  if (blocked) {
+    return { ok: false, message: "That address isn't allowed.", canPaste: false };
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
@@ -46,19 +58,40 @@ export async function importRecipeFromUrl(rawUrl: string): Promise<ParsedRecipe>
       },
     });
   } catch {
-    throw new Error("Couldn't reach that page. Check the link and try again.");
+    return {
+      ok: false,
+      message: "Couldn't reach that page. Check the link and try again.",
+      canPaste: true,
+    };
   } finally {
     clearTimeout(timer);
   }
+
   if (!res.ok) {
-    throw new Error(`That page returned an error (${res.status}).`);
+    // 401/403/429/451 and the Cloudflare-ish 5xx family are near-always bot
+    // filtering rather than a broken link — the page loads fine in a browser,
+    // so the paste fallback will work.
+    const botFiltered = [401, 403, 429, 451, 503].includes(res.status);
+    return {
+      ok: false,
+      message: botFiltered
+        ? `${u.hostname} blocked the import (HTTP ${res.status}). Sites often refuse automated requests even when the page opens fine in your browser.`
+        : `That page returned an error (${res.status}).`,
+      canPaste: botFiltered || res.status >= 500,
+    };
   }
+
   const ctype = res.headers.get("content-type") || "";
   if (!ctype.includes("html") && !ctype.includes("xml")) {
-    throw new Error("That link doesn't point to a web page.");
+    return {
+      ok: false,
+      message: "That link doesn't point to a web page.",
+      canPaste: false,
+    };
   }
+
   const html = (await res.text()).slice(0, 3_000_000);
-  return parseRecipeFromHtml(html, u.toString());
+  return { ok: true, recipe: parseRecipeFromHtml(html, u.toString()) };
 }
 
 type IngredientRowInput = {

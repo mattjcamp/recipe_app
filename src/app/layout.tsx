@@ -24,8 +24,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  // Mobile-first: this app is used primarily on phones.
-  maximumScale: 1,
+  // Mobile-first: this app is used primarily on phones. Zoom is deliberately
+  // left unlocked — cooks squinting at a recipe from across the counter need
+  // to be able to pinch in, and locking scale is an accessibility failure.
+  userScalable: true,
   themeColor: "#059669",
 };
 

@@ -31,7 +31,7 @@ export default function RecipeIngredients({
           <button
             key={f}
             onClick={() => setFactor(f)}
-            className={`rounded-lg border px-2.5 py-1 text-sm font-medium ${
+            className={`rounded-lg border px-3 py-2 text-sm font-medium sm:px-2.5 sm:py-1 ${
               factor === f
                 ? "border-emerald-600 bg-emerald-50 text-emerald-700"
                 : "border-slate-300 text-slate-600 hover:bg-slate-50"

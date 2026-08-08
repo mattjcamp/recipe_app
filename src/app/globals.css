@@ -10,3 +10,38 @@ body {
   color: var(--foreground);
   font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
+
+/* ---------------------------------------------------------------------------
+   Kitchen mode: larger type on phones.
+
+   This app is read at arm's length — propped on a counter while cooking, or
+   held one-handed in a grocery aisle. Tailwind's default ramp (text-sm = 14px)
+   is too small for that, so on phones we scale the whole type ramp up ~20%.
+
+   Overriding Tailwind v4's --text-* theme variables rather than editing
+   hundreds of class names means every screen gets it for free, and desktop is
+   untouched. Line heights are unitless ratios in Tailwind v4, so they scale
+   proportionally on their own.
+
+   Bonus: text-sm inputs land at 17px, above the 16px threshold below which iOS
+   Safari auto-zooms a focused field.
+--------------------------------------------------------------------------- */
+@media (max-width: 639px) {
+  :root {
+    --text-xs: 0.875rem; /* 12 → 14px */
+    --text-sm: 1.0625rem; /* 14 → 17px */
+    --text-base: 1.1875rem; /* 16 → 19px */
+    --text-lg: 1.3125rem; /* 18 → 21px */
+    --text-xl: 1.4375rem; /* 20 → 23px */
+    --text-2xl: 1.75rem; /* 24 → 28px */
+    --text-3xl: 2.125rem; /* 30 → 34px */
+  }
+
+  /* Elements with no explicit text-* class (headings, notes, markdown steps)
+     inherit from body. Set on body, not html, so rem-based spacing and
+     padding keep their existing values and layouts don't blow out. */
+  body {
+    font-size: var(--text-base);
+    line-height: 1.55;
+  }
+}

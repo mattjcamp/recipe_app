@@ -228,7 +228,9 @@ export default function ListItems({
                       );
                       void storeToggle(item.id, checked);
                     }}
-                    className="h-5 w-5 shrink-0 accent-emerald-600"
+                    // Bigger tap target on phones: this is checked one-handed
+                    // in a grocery aisle, often without looking closely.
+                    className="h-7 w-7 shrink-0 accent-emerald-600 sm:h-5 sm:w-5"
                   />
                   <Link
                     href={`/lists/${listId}/items/${item.id}`}

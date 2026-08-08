@@ -9,9 +9,17 @@ import { addPlanToGroceryList } from "./actions";
 export default async function PlanPage({
   searchParams,
 }: {
-  searchParams: Promise<{ added?: string; list?: string; msg?: string; error?: string }>;
+  searchParams: Promise<{
+    added?: string;
+    list?: string;
+    skipped?: string;
+    pantry?: string;
+    msg?: string;
+    error?: string;
+  }>;
 }) {
-  const { added, list, msg, error } = await searchParams;
+  const { added, list, skipped, pantry, msg, error } = await searchParams;
+  const skippedCount = Number(skipped ?? 0);
   const family = await getCurrentFamily();
   if (!family) redirect("/onboarding");
 
@@ -68,11 +76,22 @@ export default async function PlanPage({
       <h1 className="mb-3 text-xl font-semibold">Meal plan</h1>
 
       {added && (
-        <p className="mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-          Added {added} {Number(added) === 1 ? "item" : "items"}
-          {list ? ` to ${list}` : ""}
-          {Number(added) === 0 ? " — everything's already covered." : "."}
-        </p>
+        <div className="mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          <p>
+            Added {added} {Number(added) === 1 ? "item" : "items"}
+            {list ? ` to ${list}` : ""}
+            {Number(added) === 0 ? " — everything's already covered." : "."}
+          </p>
+          {/* Say what the pantry absorbed, so an ingredient missing from the
+              list reads as deliberate rather than as a bug. */}
+          {skippedCount > 0 && (
+            <p className="mt-1 text-emerald-800/80">
+              Skipped {skippedCount}{" "}
+              {skippedCount === 1 ? "ingredient" : "ingredients"} already in
+              your pantry{pantry ? `: ${pantry}` : ""}.
+            </p>
+          )}
+        </div>
       )}
       {msg && (
         <p className="mb-3 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-600">

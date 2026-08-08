@@ -121,27 +121,12 @@ export async function addPlanToGroceryList() {
     source: r.list_id === pantryId ? "pantry" : "grocery",
   }));
 
-  // 5. Plan pantry moves, quantity bumps, and new inserts.
-  const { moves, increments, inserts } = planGroceryActions(
+  // 5. Plan quantity bumps and new inserts. Ingredients the pantry already
+  //    covers come back in `skipped` and are never written anywhere — the
+  //    pantry is left exactly as it was.
+  const { increments, inserts, skipped } = planGroceryActions(
     candidates,
     existing,
-  );
-
-  // Move matching pantry items onto the grocery list, setting the needed qty.
-  // Tag them as pantry-sourced and credit whoever ran the plan.
-  await Promise.all(
-    moves.map((m) =>
-      supabase
-        .from("grocery_list_items")
-        .update({
-          list_id: target!.id,
-          quantity: m.quantity,
-          is_checked: false,
-          origin: "pantry",
-          added_by: user?.id ?? null,
-        })
-        .eq("id", m.id),
-    ),
   );
 
   // Bump the quantity on items already on the grocery list.
@@ -170,13 +155,28 @@ export async function addPlanToGroceryList() {
     );
   }
 
-  const affected = moves.length + increments.length + inserts.length;
+  const affected = increments.length + inserts.length;
+
+  // Name the first few skips so the message is concrete; a long tail becomes
+  // "and N more" rather than a wall of text on a phone.
+  const SHOWN = 4;
+  const names = skipped.map((s) => s.name);
+  const shown = names.slice(0, SHOWN);
+  const rest = names.length - shown.length;
+  const skippedLabel =
+    names.length === 0
+      ? ""
+      : shown.join(", ") + (rest > 0 ? `, and ${rest} more` : "");
+
   revalidatePath("/lists");
-  revalidatePath("/pantry");
-  redirect(
-    "/plan?added=" +
-      String(affected) +
-      "&list=" +
-      encodeURIComponent(target!.name),
-  );
+  // The pantry is no longer touched by this action, so it needs no revalidate.
+  const params = new URLSearchParams({
+    added: String(affected),
+    list: target!.name,
+  });
+  if (names.length > 0) {
+    params.set("skipped", String(names.length));
+    params.set("pantry", skippedLabel);
+  }
+  redirect("/plan?" + params.toString());
 }

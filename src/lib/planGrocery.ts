@@ -2,10 +2,17 @@
 //
 // For each ingredient the week's recipes need, in priority order:
 //   1. If it's already on the grocery list, bump that item's quantity.
-//   2. Otherwise, if it's in the pantry, MOVE the pantry item onto the
-//      grocery list (it leaves the pantry) and set its quantity.
+//   2. Otherwise, if it's in the pantry, SKIP it — the pantry is what the
+//      family already has on hand, so there's nothing to buy.
 //   3. Otherwise, insert a brand-new grocery item.
 // Quantities reflect the amounts the recipes call for, summed across the week.
+//
+// Pantry hits are skipped outright rather than compared against the recipe
+// amount. Pantry quantities are frequently blank, and pantry units aren't
+// normalized against recipe units ("1 bag" of rice vs "3 cups"), so shortfall
+// arithmetic would invent purchases more often than it caught real ones.
+// Restocking stays a deliberate act: check what you're low on in the Pantry
+// tab and move it over yourself.
 
 export type Candidate = {
   ingredient_id: string | null;
@@ -24,14 +31,15 @@ export type ExistingItem = {
 };
 
 export type PlanActions = {
-  // Pantry rows to relocate onto the grocery list. `quantity` is the value to
-  // set on the moved item so it reflects what the recipes need.
-  moves: { id: string; quantity: number }[];
   // Grocery rows already on the list. `quantity` is the new total to set
   // (existing quantity + what the recipes add).
   increments: { id: string; quantity: number }[];
   // Brand-new grocery items to insert, with their needed quantity.
   inserts: Candidate[];
+  // Ingredients left off the list because the pantry already covers them.
+  // Nothing is written for these; the names are returned purely so the UI can
+  // explain why a recipe ingredient didn't show up on the list.
+  skipped: { name: string }[];
 };
 
 // Match on catalog id when available, otherwise on the normalized name.
@@ -91,9 +99,8 @@ export function planGroceryActions(
 
   // 3. Decide an action per group.
   const incByItem = new Map<string, { item: ExistingItem; add: number }>();
-  const moves: { id: string; quantity: number }[] = [];
   const inserts: Candidate[] = [];
-  const movedIds = new Set<string>();
+  const skipped: { name: string }[] = [];
 
   for (const g of groups) {
     const grocery = g.keys
@@ -106,12 +113,17 @@ export function planGroceryActions(
       continue;
     }
 
+    // Already in the pantry: we have it, so buy nothing. Unlike the grocery
+    // and (previously) pantry-move branches this consumes no pantry row, so
+    // several recipes calling for the same staple all skip against it.
     const pantry = g.keys
       .map((k) => pantryByKey.get(k))
-      .find((e): e is ExistingItem => e !== undefined && !movedIds.has(e.id));
+      .find((e): e is ExistingItem => e !== undefined);
     if (pantry) {
-      moves.push({ id: pantry.id, quantity: g.quantity });
-      movedIds.add(pantry.id);
+      // Prefer the pantry's own label so the message matches what the user
+      // sees in the Pantry tab; fall back to the recipe's wording.
+      const name = (pantry.free_text ?? "").trim() || g.candidate.name.trim();
+      if (name) skipped.push({ name });
       continue;
     }
 
@@ -123,5 +135,5 @@ export function planGroceryActions(
     quantity: (item.quantity ?? 0) + add,
   }));
 
-  return { moves, increments, inserts };
+  return { increments, inserts, skipped };
 }

@@ -230,13 +230,15 @@ export default function RecipeBrowser({
     });
   }, [list, query, category]);
 
-  // Pinned recipes surface in their own section at the top; the rest stay
-  // grouped by category.
-  const pinnedList = filtered.filter((r) => isPinned(r));
+  // Pinned recipes surface in their own section at the top and stay visible
+  // regardless of the search box or the category filter; the rest are filtered
+  // as usual and grouped by category.
+  const pinnedList = list.filter((r) => isPinned(r));
+
+  const unpinned = filtered.filter((r) => !isPinned(r));
 
   const groups = new Map<string, RecipeListItem[]>();
-  for (const r of filtered) {
-    if (isPinned(r)) continue;
+  for (const r of unpinned) {
     const key = r.category || "";
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(r);
@@ -310,7 +312,7 @@ export default function RecipeBrowser({
             </p>
           )}
 
-          {filtered.length === 0 ? (
+          {pinnedList.length === 0 && unpinned.length === 0 ? (
             <p className="text-sm text-slate-500">
               No recipes match your filters.
             </p>
@@ -333,6 +335,11 @@ export default function RecipeBrowser({
                     ))}
                   </ul>
                 </section>
+              )}
+              {unpinned.length === 0 && (
+                <p className="text-sm text-slate-500">
+                  No other recipes match your filters.
+                </p>
               )}
               {orderedKeys.map((key) => (
                 <section key={key || "uncategorized"}>

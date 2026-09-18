@@ -4,6 +4,13 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { GroceryListItem, Location } from "@/lib/database.types";
 import { PHOTO_BUCKET, SIGNED_URL_TTL } from "@/lib/storage";
+import { withDeadline } from "@/lib/offline/deadline";
+import { cachedFamilyId, cacheFamilyId } from "@/lib/offline/familyId";
+import { hasPendingPhoto, pendingPhotoUrl } from "@/lib/offline/photos";
+// Generic photo-URL cache — it lives with the cookbook code but isn't specific
+// to it: the worker caches image bytes by object path, so replaying the last
+// signed URL we saw is enough to paint a photo with no connection.
+import { cachePhotoUrls, getCachedPhotoUrl } from "@/lib/offline/recipes";
 import {
   getItem,
   getLocations,
@@ -39,80 +46,122 @@ export default function ItemDetail({
   useEffect(() => {
     let active = true;
     (async () => {
-      const online =
-        typeof navigator === "undefined" || navigator.onLine;
+      const online = typeof navigator === "undefined" || navigator.onLine;
 
-      // Locations (aisle picker): cached first so they show offline, then
-      // refreshed from the server when online. The cache is seeded here because
-      // nothing else populates it yet.
+      // --- local first ----------------------------------------------------
+      // Nothing in this block touches the network, so the screen paints right
+      // away even when `navigator.onLine` is lying about a one-bar connection.
+      // (It used to refresh locations *before* loading the item, which left
+      // the screen on "Loading…" for as long as that query took.)
       const cachedLocs = await getLocations();
       if (active && cachedLocs.length) setLocations(cachedLocs);
-      if (online) {
-        const supabase = createClient();
-        const { data: locData } = await supabase
-          .from("locations")
-          .select("*")
-          .order("created_at", { ascending: true });
-        const freshLocs = (locData as Location[]) ?? [];
-        if (freshLocs.length) {
-          await seedReference(freshLocs, []);
-          if (active) setLocations(freshLocs);
-        }
+
+      // Needed only to build a storage path for a new photo, and remembered by
+      // the app layout, so the camera works without waiting on the query below.
+      if (active) setFamilyId(cachedFamilyId());
+
+      let local = await getItem(itemId);
+      if (active && local) setItem(local);
+      if (local?.added_by) {
+        const cached = await getMemberName(local.added_by);
+        if (active && cached) setAddedByName(cached);
       }
 
-      // Item: local cache first, fall back to the network when online.
-      let local = await getItem(itemId);
-      if (!local && online) {
-        const supabase = createClient();
-        const { data } = await supabase
-          .from("grocery_list_items")
+      // Photo: a shot still waiting to upload wins, then the last signed URL.
+      if (local?.image_path) {
+        const queued = await pendingPhotoUrl(local.image_path);
+        const known = queued ?? (await getCachedPhotoUrl(local.image_path));
+        if (active && known) setPhotoUrl(known);
+      }
+
+      if (!online) {
+        if (active) {
+          setItem(local ?? null);
+          setPhotoReady(true);
+        }
+        return;
+      }
+
+      // --- refreshes ------------------------------------------------------
+      // Each one is bounded and independent: a query that times out leaves the
+      // cached value on screen instead of holding up the ones after it.
+      const supabase = createClient();
+
+      const { data: locData } = await withDeadline((signal) =>
+        supabase
+          .from("locations")
           .select("*")
-          .eq("id", itemId)
-          .maybeSingle();
+          .order("created_at", { ascending: true })
+          .abortSignal(signal),
+      );
+      const freshLocs = (locData as Location[]) ?? [];
+      if (freshLocs.length) {
+        await seedReference(freshLocs, []);
+        if (active) setLocations(freshLocs);
+      }
+
+      if (!local) {
+        const { data } = await withDeadline((signal) =>
+          supabase
+            .from("grocery_list_items")
+            .select("*")
+            .eq("id", itemId)
+            .abortSignal(signal)
+            .maybeSingle(),
+        );
         local = (data as GroceryListItem) ?? undefined;
       }
       if (active) setItem(local ?? null);
-      if (!local) return;
+      if (!local) {
+        if (active) setPhotoReady(true);
+        return;
+      }
 
-      // Who added it: cached name first, refreshed from the server when online.
       if (local.added_by) {
-        const cached = await getMemberName(local.added_by);
-        if (active && cached) setAddedByName(cached);
-        if (online) {
-          const supabase = createClient();
-          const { data: prof } = await supabase
+        const { data: prof } = await withDeadline((signal) =>
+          supabase
             .from("profiles")
             .select("display_name")
-            .eq("user_id", local.added_by)
-            .maybeSingle();
-          const name =
-            (prof as { display_name: string | null } | null)?.display_name ??
-            null;
+            .eq("user_id", local!.added_by!)
+            .abortSignal(signal)
+            .maybeSingle(),
+        );
+        const name =
+          (prof as { display_name: string | null } | null)?.display_name ?? null;
+        if (name) {
           await cacheMemberName(local.added_by, name);
-          if (active && name) setAddedByName(name);
+          if (active) setAddedByName(name);
         }
       }
 
-      // Photo + family id need the network; skip cleanly when offline.
-      if (online) {
-        const supabase = createClient();
-        const { data: listRow } = await supabase
+      const { data: listRow } = await withDeadline((signal) =>
+        supabase
           .from("grocery_lists")
           .select("family_id")
           .eq("id", listId)
-          .maybeSingle();
-        if (active)
-          setFamilyId(
-            (listRow as { family_id: string } | null)?.family_id ?? "",
-          );
+          .abortSignal(signal)
+          .maybeSingle(),
+      );
+      const freshFamilyId =
+        (listRow as { family_id: string } | null)?.family_id ?? "";
+      if (freshFamilyId) {
+        cacheFamilyId(freshFamilyId);
+        if (active) setFamilyId(freshFamilyId);
+      }
 
-        if (local.image_path) {
-          const { data: signed } = await supabase.storage
-            .from(PHOTO_BUCKET)
-            .createSignedUrl(local.image_path, SIGNED_URL_TTL);
-          if (active) setPhotoUrl(signed?.signedUrl ?? null);
+      // Don't re-sign a photo that hasn't been uploaded yet — there's nothing
+      // at that path, and the local preview is the only copy there is.
+      const stillQueued = await hasPendingPhoto(local.image_path);
+      if (local.image_path && !stillQueued) {
+        const { data: signed } = await supabase.storage
+          .from(PHOTO_BUCKET)
+          .createSignedUrl(local.image_path, SIGNED_URL_TTL);
+        if (signed?.signedUrl) {
+          await cachePhotoUrls({ [local.image_path]: signed.signedUrl });
+          if (active) setPhotoUrl(signed.signedUrl);
         }
       }
+
       if (active) setPhotoReady(true);
     })();
     return () => {
@@ -149,6 +198,7 @@ export default function ItemDetail({
             scope="grocery"
             ownerId={item.id}
             initialUrl={photoUrl}
+            queueOffline
             persist={async (path) => {
               await updateItem(item.id, { image_path: path });
             }}

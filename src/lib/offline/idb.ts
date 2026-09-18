@@ -2,10 +2,12 @@
 // Stores: items (grocery_list_items cache), locations, ingredients, outbox,
 // members (user_id -> display_name, for showing who added an item offline),
 // recipes + recipe_ingredients (read-only offline cookbook), photos
-// (storage path -> last known signed URL, so cached photo bytes still resolve).
+// (storage path -> last known signed URL, so cached photo bytes still resolve),
+// plan_entries (read-only offline meal plan), photo_outbox (photos taken
+// without a connection, waiting to be uploaded).
 
 const DB_NAME = "recipe-app";
-const DB_VERSION = 3;
+const DB_VERSION = 5;
 
 export type StoreName =
   | "items"
@@ -15,7 +17,9 @@ export type StoreName =
   | "members"
   | "recipes"
   | "recipe_ingredients"
-  | "photos";
+  | "photos"
+  | "plan_entries"
+  | "photo_outbox";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -45,6 +49,10 @@ function openDB(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains("photos"))
         db.createObjectStore("photos", { keyPath: "path" });
+      if (!db.objectStoreNames.contains("plan_entries"))
+        db.createObjectStore("plan_entries", { keyPath: "id" });
+      if (!db.objectStoreNames.contains("photo_outbox"))
+        db.createObjectStore("photo_outbox", { keyPath: "path" });
     };
     // Another tab still holding an older version open would block the upgrade
     // forever (every read would hang, including the shopping list). Closing on

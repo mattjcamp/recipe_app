@@ -1,17 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useOnline } from "@/lib/useOnline";
+import { withDeadline } from "@/lib/offline/deadline";
+import {
+  getCachedPlanEntries,
+  replacePlanEntries,
+  type CachedPlanEntry,
+} from "@/lib/offline/plan";
 
-type Entry = {
-  id: string;
-  day_of_week: number;
-  sort_order: number;
-  kind: "meal" | "recipe";
-  refId: string;
-  label: string;
-};
+// The cached shape plus the display label, which is resolved from the meal and
+// recipe lists the server rendered rather than stored.
+type Entry = CachedPlanEntry & { label: string };
 type Option = { id: string; name: string };
 // `search` includes the title + ingredient names (lowercased) for filtering.
 type RecipeOption = Option & { category: string | null; search: string };
@@ -44,6 +46,7 @@ export default function PlanWeek({
   recipeThumbs?: Record<string, string>;
 }) {
   const supabase = createClient();
+  const online = useOnline();
 
   // Meals and their recipes are stateful so a day saved as a new meal shows up
   // in the picker without a reload.
@@ -63,6 +66,10 @@ export default function PlanWeek({
 
   const [entries, setEntries] = useState<Entry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Guards the cache-mirroring effect below: until the first load has run,
+  // `entries` is still the empty initial value and writing it through would
+  // reconcile the cached plan away.
+  const loaded = useRef(false);
 
   const labelFor = useCallback(
     (kind: "meal" | "recipe", refId: string) =>
@@ -72,31 +79,67 @@ export default function PlanWeek({
     [mealOpts, recipes],
   );
 
+  // Cache first, then refresh. Reading the local copy before touching the
+  // network is what makes the plan readable in a store: the request that
+  // follows may take a while or never arrive, and by then the week is already
+  // on screen.
   const load = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("meal_plan_entries")
-      .select("*")
-      .order("sort_order", { ascending: true });
-    if (error) return setError(error.message);
-    setEntries(
-      (data ?? []).map((e) => {
-        const kind: "meal" | "recipe" = e.meal_id ? "meal" : "recipe";
-        const refId = (e.meal_id ?? e.recipe_id) as string;
-        return {
-          id: e.id,
-          day_of_week: e.day_of_week,
-          sort_order: e.sort_order,
-          kind,
-          refId,
-          label: labelFor(kind, refId),
-        };
-      }),
+    const withLabels = (rows: CachedPlanEntry[]): Entry[] =>
+      rows.map((r) => ({ ...r, label: labelFor(r.kind, r.refId) }));
+
+    const cached = await getCachedPlanEntries();
+    if (cached.length) setEntries(withLabels(cached));
+    // From here on `entries` reflects the real plan, so it's safe to mirror.
+    loaded.current = true;
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+
+    const { data, error } = await withDeadline((signal) =>
+      supabase
+        .from("meal_plan_entries")
+        .select("*")
+        .order("sort_order", { ascending: true })
+        .abortSignal(signal),
     );
+    if (error) {
+      // A timeout on a weak signal isn't worth a red banner when the cached
+      // week is already showing — only speak up if there's nothing to show.
+      if (cached.length === 0) setError(error.message);
+      return;
+    }
+
+    const rows: CachedPlanEntry[] = (data ?? []).map((e) => {
+      const kind: "meal" | "recipe" = e.meal_id ? "meal" : "recipe";
+      return {
+        id: e.id,
+        day_of_week: e.day_of_week,
+        sort_order: e.sort_order,
+        kind,
+        refId: (e.meal_id ?? e.recipe_id) as string,
+      };
+    });
+    await replacePlanEntries(rows);
+    setEntries(withLabels(rows));
   }, [supabase, labelFor]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Keep the local copy in step with what's on screen, so edits made in this
+  // session are still there next time the plan is opened without a connection.
+  useEffect(() => {
+    if (!loaded.current) return;
+    void replacePlanEntries(
+      entries.map(({ id, day_of_week, sort_order, kind, refId }) => ({
+        id,
+        day_of_week,
+        sort_order,
+        kind,
+        refId,
+      })),
+    );
+  }, [entries]);
 
   const dayEntries = (dow: number) =>
     entries
@@ -240,6 +283,11 @@ export default function PlanWeek({
           Add meals or recipes first (Family → Meals, or the Recipes tab).
         </p>
       )}
+      {!online && (
+        <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Offline — this is your saved plan. Editing it needs a connection.
+        </p>
+      )}
 
       <div className="flex flex-col gap-3">
         {DAY_ORDER.map((dow) => {
@@ -281,35 +329,39 @@ export default function PlanWeek({
                       >
                         {e.label}
                       </Link>
-                      <button
-                        onClick={() => reorder(e.id, -1)}
-                        disabled={i === 0}
-                        className="px-1 text-slate-400 disabled:opacity-30"
-                        aria-label="Move up"
-                      >
-                        ↑
-                      </button>
-                      <button
-                        onClick={() => reorder(e.id, 1)}
-                        disabled={i === list.length - 1}
-                        className="px-1 text-slate-400 disabled:opacity-30"
-                        aria-label="Move down"
-                      >
-                        ↓
-                      </button>
-                      <button
-                        onClick={() => removeEntry(e.id)}
-                        className="px-1 text-slate-400 hover:text-red-600"
-                        aria-label="Remove"
-                      >
-                        ✕
-                      </button>
+                      {online && (
+                        <>
+                          <button
+                            onClick={() => reorder(e.id, -1)}
+                            disabled={i === 0}
+                            className="px-1 text-slate-400 disabled:opacity-30"
+                            aria-label="Move up"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            onClick={() => reorder(e.id, 1)}
+                            disabled={i === list.length - 1}
+                            className="px-1 text-slate-400 disabled:opacity-30"
+                            aria-label="Move down"
+                          >
+                            ↓
+                          </button>
+                          <button
+                            onClick={() => removeEntry(e.id)}
+                            className="px-1 text-slate-400 hover:text-red-600"
+                            aria-label="Remove"
+                          >
+                            ✕
+                          </button>
+                        </>
+                      )}
                     </li>
                   ))}
                 </ul>
               )}
 
-              {!noOptions && (
+              {online && !noOptions && (
                 <DayAdder
                   dayName={name}
                   meals={mealOpts}
@@ -318,7 +370,7 @@ export default function PlanWeek({
                 />
               )}
 
-              {list.some((e) => e.kind === "recipe") && (
+              {online && list.some((e) => e.kind === "recipe") && (
                 <SaveDayAsMeal onSave={(n) => saveDayAsMeal(dow, n)} />
               )}
             </section>

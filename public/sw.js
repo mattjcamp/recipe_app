@@ -8,17 +8,52 @@
 // Bump VERSION to force clients onto fresh page/static caches after a deploy.
 // The image cache is intentionally NOT versioned so cached photos survive
 // deploys (their contents never change — see the note on signed URLs below).
-const VERSION = "v5";
+const VERSION = "v7";
 const STATIC_CACHE = `static-${VERSION}`;
 const PAGE_CACHE = `pages-${VERSION}`;
 const IMAGE_CACHE = "images"; // durable across deploys
 const OFFLINE_URL = "/offline.html";
 const MAX_IMAGES = 400; // rough cap to keep storage bounded
 
+// Network deadlines (ms).
+//
+// The hard case is not being offline — it's one bar at the back of a store.
+// There, `navigator.onLine` is still true and a fetch can stay open for a
+// minute before the OS gives up, which is what makes the app feel frozen.
+// Every network path the worker owns therefore gets an explicit deadline and
+// falls back to the cache (or the offline page) instead of waiting.
+const NAV_TIMEOUT = 6000; // someone is watching a blank screen
+const REVALIDATE_TIMEOUT = 15000; // background refresh; nobody is waiting
+const IMAGE_TIMEOUT = 10000;
+const WARM_TIMEOUT = 10000;
+
+// `AbortSignal.timeout` isn't in every Safari we care about, so build it by
+// hand. Rejects with an AbortError once `ms` has passed.
+function fetchWithTimeout(request, ms, init) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return fetch(request, { ...init, signal: controller.signal }).finally(() =>
+    clearTimeout(timer),
+  );
+}
+
+// Refresh a cached entry in the background, under a loose deadline so a stalled
+// connection can't hold the request open indefinitely. Never awaited.
+function revalidate(cache, request) {
+  fetchWithTimeout(request, REVALIDATE_TIMEOUT)
+    .then((res) => {
+      if (res && res.ok && res.type === "basic")
+        return cache.put(request, res.clone());
+    })
+    .catch(() => {
+      // offline, too slow, or aborted — the cached copy stands
+    });
+}
+
 // The tabs that work without a connection. Bumping VERSION rotates PAGE_CACHE,
 // which would otherwise leave these routes uncached — and an offline user
 // stranded on offline.html with dead links. So they're re-warmed on install.
-const CORE_ROUTES = ["/lists", "/pantry", "/recipes"];
+const CORE_ROUTES = ["/lists", "/pantry", "/recipes", "/plan"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -57,18 +92,22 @@ async function warmRoutes(routes) {
       const rscKey = `${route}?_rsc=warm`;
       try {
         if (!(await cache.match(route))) {
-          const doc = await fetch(route, { credentials: "same-origin" });
+          const doc = await fetchWithTimeout(route, WARM_TIMEOUT, {
+            credentials: "same-origin",
+          });
           if (isCacheableWarm(doc) && isHtml(doc)) await cache.put(route, doc);
         }
         if (!(await cache.match(rscKey, { ignoreVary: true }))) {
-          const rsc = await fetch(route, {
+          const rsc = await fetchWithTimeout(route, WARM_TIMEOUT, {
             credentials: "same-origin",
             headers: { RSC: "1" },
           });
           if (isCacheableWarm(rsc) && !isHtml(rsc)) await cache.put(rscKey, rsc);
         }
       } catch {
-        stopped = true; // offline
+        // Offline, or the connection is too slow to warm anything useful.
+        // Either way there's no point working through the rest of the queue.
+        stopped = true;
         return;
       }
     }
@@ -132,16 +171,18 @@ async function handleImage(request) {
   try {
     // CORS fetch so we can read the status and avoid caching error responses
     // (e.g. an expired-token 403). Supabase Storage allows cross-origin GETs.
-    const res = await fetch(request.url, { mode: "cors" });
+    const res = await fetchWithTimeout(request.url, IMAGE_TIMEOUT, {
+      mode: "cors",
+    });
     if (res && res.ok) {
       await cache.put(keyUrl, res.clone());
       await trimImageCache(cache);
     }
     return res;
   } catch {
-    // Offline or CORS blocked: last-ditch opaque fetch so the <img> still has a
-    // chance to render; not cached (can't verify it succeeded).
-    return fetch(request).catch(() => Response.error());
+    // Offline, too slow, or CORS blocked: last-ditch opaque fetch so the <img>
+    // still has a chance to render; not cached (can't verify it succeeded).
+    return fetchWithTimeout(request, IMAGE_TIMEOUT).catch(() => Response.error());
   }
 }
 
@@ -158,19 +199,21 @@ async function handleNavigate(request) {
   // hold both an HTML entry and (from route warming) a `text/x-component` one.
   const hit = await cache.match(request);
   const cached = hit && isHtml(hit) ? hit : undefined;
-  const netPromise = fetch(request)
-    .then((res) => {
-      if (res && res.ok && res.type === "basic") cache.put(request, res.clone());
-      return res;
-    })
-    .catch(() => null);
 
   if (cached) {
-    netPromise; // keep updating in the background
+    revalidate(cache, request); // keep updating in the background
     return cached;
   }
-  const res = await netPromise;
-  return res || (await caches.match(OFFLINE_URL)) || Response.error();
+
+  // Nothing cached for this route. This is the request that used to hang on a
+  // weak signal: give it a short deadline, then say so rather than spinning.
+  try {
+    const res = await fetchWithTimeout(request, NAV_TIMEOUT);
+    if (res && res.ok && res.type === "basic") cache.put(request, res.clone());
+    return res;
+  } catch {
+    return (await caches.match(OFFLINE_URL)) || Response.error();
+  }
 }
 
 // Next.js client-side navigation fetches the target route's React Server
@@ -189,20 +232,22 @@ function isNavigationRSC(request) {
 async function handleRSC(request) {
   const cache = await caches.open(PAGE_CACHE);
   const cached = await cache.match(request, { ignoreVary: true });
-  const netPromise = fetch(request)
-    .then((res) => {
-      if (res && res.ok && res.type === "basic")
-        cache.put(request, res.clone());
-      return res;
-    })
-    .catch(() => null);
 
   if (cached) {
-    netPromise; // refresh in the background
+    revalidate(cache, request); // refresh in the background
     return cached;
   }
-  const res = await netPromise;
-  if (res) return res;
+
+  // Not cached: bounded wait, then fall through to the loose match below. An
+  // in-app tab tap that finds nothing must fail fast — the router shows the
+  // previous screen while this is pending, so a hang reads as a frozen app.
+  try {
+    const res = await fetchWithTimeout(request, NAV_TIMEOUT);
+    if (res && res.ok && res.type === "basic") cache.put(request, res.clone());
+    return res;
+  } catch {
+    // fall through to the warmed-payload lookup
+  }
 
   // Offline with no exact hit. Next appends a per-build `_rsc=<hash>` cache
   // buster, so a payload warmed ahead of time (see warmRecipeRoutes, which

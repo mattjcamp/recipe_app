@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentFamily } from "@/lib/family";
 import type { Meal, Recipe } from "@/lib/database.types";
 import { PHOTO_BUCKET, SIGNED_URL_TTL } from "@/lib/storage";
+import OnlineOnly from "../OnlineOnly";
 import PlanWeek from "./PlanWeek";
 import { addPlanToGroceryList } from "./actions";
 
@@ -104,11 +105,15 @@ export default async function PlanPage({
         </p>
       )}
 
-      <form action={addPlanToGroceryList} className="mb-4">
-        <button className="w-full rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700">
-          Add this week&apos;s ingredients to grocery list
-        </button>
-      </form>
+      {/* Server action: needs a round trip, so it's hidden rather than left
+          looking tappable on a cached page with no connection. */}
+      <OnlineOnly>
+        <form action={addPlanToGroceryList} className="mb-4">
+          <button className="w-full rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700">
+            Add this week&apos;s ingredients to grocery list
+          </button>
+        </form>
+      </OnlineOnly>
 
       <PlanWeek
         familyId={family.familyId}

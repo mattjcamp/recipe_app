@@ -12,12 +12,12 @@ type LinkDef = {
   offlineOk: boolean;
 };
 
-// Lists, Pantry and Recipes read from a local cache, so they work offline
-// (Recipes read-only). Plan & Family need a connection and are disabled.
+// Lists, Pantry, Recipes and Plan all read from a local cache, so they work
+// offline (Recipes and Plan read-only). Family needs a connection.
 const LINKS: LinkDef[] = [
   { href: "/lists", label: "Lists", icon: "🛒", offlineOk: true },
   { href: "/pantry", label: "Pantry", icon: "🥫", offlineOk: true },
-  { href: "/plan", label: "Plan", icon: "📅", offlineOk: false },
+  { href: "/plan", label: "Plan", icon: "📅", offlineOk: true },
   { href: "/recipes", label: "Recipes", icon: "📖", offlineOk: true },
   { href: "/family", label: "Family", icon: "👪", offlineOk: false },
 ];

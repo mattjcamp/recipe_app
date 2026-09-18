@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentFamily } from "@/lib/family";
 import OnlineBanner from "./OnlineBanner";
+import CacheFamilyId from "./CacheFamilyId";
 import AppNav from "./AppNav";
 
 // Layout for all signed-in, in-a-family pages. Provides the nav chrome and
@@ -15,6 +16,7 @@ export default async function AppLayout({
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-2xl flex-col">
+      <CacheFamilyId id={family.familyId} />
       <OnlineBanner />
       <AppNav variant="mobile" />
       <main className="flex-1 px-4 py-4">{children}</main>

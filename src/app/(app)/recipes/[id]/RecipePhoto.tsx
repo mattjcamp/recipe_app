@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { PHOTO_BUCKET, SIGNED_URL_TTL, photoPath } from "@/lib/storage";
+import { preparePhoto } from "@/lib/image";
 import { setRecipeImage } from "../actions";
 
 export default function RecipePhoto({
@@ -27,11 +28,18 @@ export default function RecipePhoto({
     setBusy(true);
     setError(null);
     const supabase = createClient();
-    const path = photoPath(familyId, "recipes", recipeId, file.name);
+
+    // Recipe photos are the most-viewed images in the app — shrink before
+    // upload so every phone that opens the recipe isn't paying for a 5MB file.
+    const photo = await preparePhoto(file);
+    const path = photoPath(familyId, "recipes", recipeId, photo.fileName);
 
     const { error: upErr } = await supabase.storage
       .from(PHOTO_BUCKET)
-      .upload(path, file, { upsert: true });
+      .upload(path, photo.blob, {
+        upsert: true,
+        contentType: photo.contentType,
+      });
 
     if (upErr) {
       setError(upErr.message);
@@ -63,7 +71,7 @@ export default function RecipePhoto({
       )}
 
       <label className="inline-block cursor-pointer rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-        {busy ? "Uploading…" : url ? "Change photo" : "Add photo"}
+        {busy ? "Saving…" : url ? "Change photo" : "Add photo"}
         <input
           type="file"
           accept="image/*"

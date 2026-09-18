@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { PHOTO_BUCKET, SIGNED_URL_TTL, photoPath } from "@/lib/storage";
+import { preparePhoto } from "@/lib/image";
 import { cachedFamilyId } from "@/lib/offline/familyId";
 import { queuePhoto } from "@/lib/offline/photos";
 
@@ -47,8 +48,8 @@ export default function PhotoCapture({
     [],
   );
 
-  function previewLocally(file: File) {
-    const u = URL.createObjectURL(file);
+  function previewLocally(blob: Blob) {
+    const u = URL.createObjectURL(blob);
     localUrls.current.push(u);
     setUrl(u);
   }
@@ -70,15 +71,21 @@ export default function PhotoCapture({
     setError(null);
     setQueued(false);
 
-    const path = photoPath(family, scope, ownerId, file.name);
-    previewLocally(file); // instant feedback, whatever happens next
+    // Shrink first: everything downstream — the upload, the offline queue, and
+    // every other phone that later downloads this — pays for these bytes.
+    const photo = await preparePhoto(file);
+    const path = photoPath(family, scope, ownerId, photo.fileName);
+    previewLocally(photo.blob); // instant feedback, whatever happens next
 
     const online = typeof navigator === "undefined" || navigator.onLine;
     if (online) {
       const supabase = createClient();
       const { error: upErr } = await supabase.storage
         .from(PHOTO_BUCKET)
-        .upload(path, file, { upsert: true });
+        .upload(path, photo.blob, {
+          upsert: true,
+          contentType: photo.contentType,
+        });
 
       if (!upErr) {
         const { data } = await supabase.storage
@@ -105,7 +112,7 @@ export default function PhotoCapture({
       return;
     }
 
-    await queuePhoto(path, file);
+    await queuePhoto(path, photo.blob, photo.contentType);
     startTransition(() => persist(path));
     setQueued(true);
     setBusy(false);
@@ -133,7 +140,7 @@ export default function PhotoCapture({
           disabled={busy}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
         >
-          {busy ? "Uploading…" : url ? "📷 Retake" : "📷 Take photo"}
+          {busy ? "Saving…" : url ? "📷 Retake" : "📷 Take photo"}
         </button>
         {url && !busy && (
           <button

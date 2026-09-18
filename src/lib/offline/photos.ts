@@ -14,6 +14,7 @@ export type PendingPhoto = {
   /** Final storage path — chosen at capture time, never changes. */
   path: string;
   blob: Blob;
+  contentType: string;
   attempts: number;
   createdAt: string;
 };
@@ -28,10 +29,15 @@ const MAX_ATTEMPTS = 5;
 // uploads for the rest of the session.
 const UPLOAD_WEDGE_MS = 5 * 60_000;
 
-export async function queuePhoto(path: string, blob: Blob): Promise<void> {
+export async function queuePhoto(
+  path: string,
+  blob: Blob,
+  contentType?: string,
+): Promise<void> {
   await idbPut("photo_outbox", {
     path,
     blob,
+    contentType: contentType || blob.type || "image/jpeg",
     attempts: 0,
     createdAt: new Date().toISOString(),
   });
@@ -86,7 +92,10 @@ export async function syncPhotos(): Promise<void> {
       if (row.attempts >= MAX_ATTEMPTS) continue; // parked, not blocking
       const { error } = await supabase.storage
         .from(PHOTO_BUCKET)
-        .upload(row.path, row.blob, { upsert: true });
+        .upload(row.path, row.blob, {
+          upsert: true,
+          contentType: row.contentType,
+        });
 
       if (error) {
         await idbPut("photo_outbox", { ...row, attempts: row.attempts + 1 });

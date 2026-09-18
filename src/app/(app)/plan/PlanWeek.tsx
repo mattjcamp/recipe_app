@@ -26,6 +26,10 @@ const DAYS = [
   "Saturday",
 ];
 
+// Display order for the day cards: Saturday leads, then Sunday..Friday.
+// Values are day_of_week indexes into DAYS, so stored data is untouched.
+const DAY_ORDER = [6, 0, 1, 2, 3, 4, 5];
+
 export default function PlanWeek({
   familyId,
   meals,
@@ -238,7 +242,8 @@ export default function PlanWeek({
       )}
 
       <div className="flex flex-col gap-3">
-        {DAYS.map((name, dow) => {
+        {DAY_ORDER.map((dow) => {
+          const name = DAYS[dow];
           const list = dayEntries(dow);
           return (
             <section
